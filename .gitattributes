@@ -1,0 +1,4 @@
+# Keep Linux line endings everywhere: the shell scripts and systemd units run on the Ubuntu server.
+* text=auto eol=lf
+*.png binary
+*.gz binary
