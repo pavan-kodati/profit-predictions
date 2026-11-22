@@ -14,8 +14,9 @@ from stockresearch.adapters.yahoo import INDEX_SYMBOL
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
 from stockresearch.domain import capgroup, filings, screening
+from stockresearch.domain import corporate_actions as ca_rules
 from stockresearch.domain.models import EventType, Tier
-from stockresearch.services import repo
+from stockresearch.services import corporate_actions, repo
 from stockresearch.services.runs import JobContext
 
 log = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ def _bhav_rows(df: pd.DataFrame, symbols: set[str]) -> list[dict]:
             "symbol": r["symbol"], "date": r["date"], "open": float(r["open"]), "high": float(r["high"]),
             "low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"] or 0),
             "delivery_pct": None if pd.isna(r["delivery_pct"]) else float(r["delivery_pct"]),
-            "series": r["series"], "source": "nse",
+            "series": r["series"], "source": "nse", "basis_date": r["date"],
         })
     return rows
 
@@ -118,8 +119,11 @@ def load_day_prices(ctx: JobContext, day: date, detail: list[str]) -> bool:
             detail.append(f"No NSE file for {day} (market holiday or not yet published)")
             return False
         with session_scope(ctx.c.sessions) as s:
+            jumps = corporate_actions.cross_check(s, df, day, symbols)
             n = repo.store_prices(s, _bhav_rows(df, symbols))
         detail.append(f"{n} stocks from the official NSE file")
+        if jumps:
+            detail.append(f"Unexplained change in share count (prices adjusted, kept out of picks): {', '.join(jumps)}")
     except SourceUnavailable as e:
         detail.append(f"NSE unavailable ({e}); falling back to Yahoo Finance")
         frames = ctx.c.market.history(sorted(symbols), period="5d")
@@ -195,10 +199,12 @@ def run_screen(ctx: JobContext, detail: list[str]) -> None:
         positive_events = set(s.scalars(select(m.Event.symbol).where(
             m.Event.polarity > 0, m.Event.status == "verified", m.Event.event_date >= today - timedelta(days=5))))
         surveillance = set(s.scalars(select(m.Surveillance.symbol)))
+        unreliable = {sym for sym, acts in repo.load_actions(s, symbols).items()
+                      if ca_rules.price_warning(acts, today)}
     techs = {}
     for sym, df in bars.items():
         t = repo.technicals_for(df)
-        if t is not None and sym not in surveillance:
+        if t is not None and sym not in surveillance and sym not in unreliable:
             techs[sym] = t
     per_group_limit = c.settings.shortlist_per_group * (1 if groups is not None else len(capgroup.ORDER))
     candidates = screening.screen(techs, positive_events, c.settings.min_turnover_cr, per_group_limit, groups)
@@ -227,6 +233,8 @@ def market_close(ctx: JobContext, day: date | None = None) -> str:
     if universe_is_stale(ctx):
         with ctx.stage("Refresh NSE stock list") as detail:
             refresh_universe(ctx, detail)
+    ctx.soft_stage("Splits and bonus issues",
+                   lambda d: corporate_actions.ingest(ctx.c, tracked_symbols(ctx), d, today=day))
     with ctx.stage("Official end-of-day prices") as detail:
         traded = load_day_prices(ctx, day, detail)
     if not traded:

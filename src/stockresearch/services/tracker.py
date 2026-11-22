@@ -10,6 +10,7 @@ from sqlalchemy import select
 from stockresearch.container import Container
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
+from stockresearch.domain import corporate_actions as ca
 from stockresearch.domain.costs import CostModel, net_return
 from stockresearch.domain.practice import earliest_entry_day
 from stockresearch.services import notify, repo
@@ -29,9 +30,10 @@ def update_outcomes(c: Container, detail: list[str]) -> None:
     with session_scope(c.sessions) as s:
         picks = list(s.scalars(select(m.Pick).where(m.Pick.pick_date >= since)))
         bars = repo.load_bars(s, sorted({p.symbol for p in picks}), days=TRACK_DAYS + 30)
+        actions = repo.load_actions(s, sorted(bars))
         updated = 0
         for p in picks:
-            df = bars.get(p.symbol)
+            df = ca.rebase(bars.get(p.symbol), actions.get(p.symbol, []), p.ref_date)
             if df is None:
                 continue
             report = s.get(m.Report, p.report_id)

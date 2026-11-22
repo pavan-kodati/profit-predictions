@@ -9,7 +9,8 @@
     {% if rv %}{{ ring(rv.data.rating, "lg") }}{% else %}<div class="ring lg"><span>–</span></div>{% endif %}
     <div>
       <h1>{{ name }} <span class="sym">{{ h.symbol }}</span></h1>
-      <p class="muted small">{{ h.quantity|int }} shares at {{ h.avg_price|money }}{% if h.buy_date %} · bought {{ h.buy_date.strftime('%d %b %Y') }}{% endif %} · {{ 'short' if h.horizon == 'short' else 'long' }}-term{% if h.stop_price %} · stop {{ h.stop_price|money }}{% endif %}</p>
+      <p class="muted small">{{ lv.quantity|int }} shares at {{ lv.avg_price|money }}{% if h.buy_date %} · bought {{ h.buy_date.strftime('%d %b %Y') }}{% endif %} · {{ 'short' if h.horizon == 'short' else 'long' }}-term{% if lv.stop_price %} · stop {{ lv.stop_price|money }}{% endif %}</p>
+      {% for line in lv.notes %}<p class="muted small">{{ line }}. You entered {{ h.quantity|int }} shares at {{ h.avg_price|money }}.</p>{% endfor %}
       <div class="chips">
         {% if rv %}<span class="chip {{ rv.status }}">{{ rv.status|capitalize }}</span><span class="chip">Reviewed {{ rv.review_date.strftime('%d %b') }}</span>{% endif %}
         <a class="chip accent" href="/stocks/{{ h.symbol }}">All reports</a>

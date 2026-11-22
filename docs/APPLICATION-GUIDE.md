@@ -74,7 +74,7 @@ holidays: it checks the date inside each NSE file).
 |---|---|---|
 | Every hour at :05 | `collect` | Downloads new NSE filings and headlines from approved newspapers. Saves a copy of each. Adds stocks to the research queue when something important appears. |
 | Every 15 minutes | `research` | Takes up to 4 stocks from the research queue (holdings first, then positive filings, then candidates) and researches each one. |
-| 19:00 Mon-Fri | `market-close` | The big evening job: official prices and delivery %, size groups, bulk/block deals, exchange watch lists, the screen that builds tomorrow's shortlist, pretend trades, "stocks we said no to", exit alerts for your holdings. |
+| 19:00 Mon-Fri | `market-close` | The big evening job: splits and bonus issues, official prices and delivery %, size groups, bulk/block deals, exchange watch lists, the screen that builds tomorrow's shortlist, pretend trades, "stocks we said no to", exit alerts for your holdings. |
 | 08:00 Mon-Fri | `publish` | Rates the shortlist, picks up to 3 per size group, reviews your holdings, **sends the morning email**. |
 | 09:20 Mon-Fri | `open-check` | If a pick opened more than 3% above its reference price, flags it as "stale" and sends an alert. |
 | 19:30 Friday | `practice-weekly` | Sends the **weekly results email** ("How the app's picks did"). |
@@ -171,6 +171,7 @@ You can also press a button to research any stock on demand (10 a day).
 | Trading in restricted series BE, BZ, BT or IT | Trade-for-trade: no intraday exit |
 | Locked at the upper price limit | You could not actually buy it. (Uses NSE's official price-limit list; stocks with no fixed limit are never flagged.) |
 | Promoter shares pledged above 25% | Forced-selling risk |
+| Price history unreliable (14 days) | The share count changed in a way the app could not read (an unreadable notice, or NSE's own previous close jumped with no split or bonus on record, for example a demerger). Section 4a |
 | *Flag only, not a failure:* results due within 21 days | The reaction to results is unpredictable |
 
 ### Step 7. Six scores, each 1 to 5, and the rating
@@ -252,6 +253,29 @@ Nifty 50. Verdicts: *Right to skip* (it fell, or trailed the Nifty by more than 
 **The back-test** (`/backtest`, `stockresearch backtest`) replays only the price-and-volume screen on past data (top 5 a day, bought next open, held 10 days) against buying every liquid stock. News and filings cannot be back-tested; that is what the pretend trading is for.
 
 ---
+
+## 4a. Splits and bonus issues
+
+A 1-into-5 split makes the price fall to a fifth overnight with no loss to anyone. Since plan v5 (22 Nov 2026) the app
+corrects for this; details in `docs/PLAN-v5-splits-and-bonus.md`.
+
+- **Stored prices are never rewritten.** Each split, bonus or consolidation is recorded in `corporate_actions` with a factor
+  (5 for 1-into-5, 2 for a 1:1 bonus, 0.1 for 10-into-1) and prices are adjusted when they are read (`repo.load_bars`).
+  Each price row remembers whose share units it is in (`daily_prices.basis_date`): its own date for NSE rows, the download
+  day for Yahoo rows, which Yahoo has already adjusted. So nothing is adjusted twice.
+- **Where actions come from:** NSE's corporate-actions list, read by fixed rules each evening (past 30 days and next 30).
+  Every evening the app also compares NSE's own previous close (which NSE adjusts on an ex-date) with its own. A jump of
+  more than 2% that no recorded action explains is recorded with the factor NSE's figure implies, so prices are corrected,
+  an alert is raised, and the stock is kept out of picks and the screen for 14 days. Notices that mention a split or bonus
+  but cannot be read are recorded and flagged the same way, never guessed. Dividends and rights issues are not adjusted.
+- **Pretend trades** are valued in the share units of the day their safety price was set, so the stored buy price, safety
+  price and quantity stay valid and are never edited. Picks still running and stocks the app said no to are compared the
+  same way. Your holdings are shown in today's units, with a note such as "Prices adjusted for a share split ... on 3 Dec".
+- **Correction notes.** A trade that finished before a split during it was known (so it was settled on unadjusted
+  prices) gets a note in `trade_corrections`. The trade is unchanged; the track record shows the note and leaves the
+  trade out of every total. A finished rejection in the same situation is re-judged on adjusted prices.
+- **By hand:** `stockresearch corporate-action add SYMBOL YYYY-MM-DD FACTOR "note"` records one, and
+  `stockresearch corporate-action check` lists every trade, holding, pick and rejection that spans a recorded action.
 
 ## 5. Your own shares: holdings, alerts and practice trades
 
@@ -404,7 +428,8 @@ container starts (`stockresearch init-db`).
 | Evidence | `source_documents`, `events`, `event_sources`, `evidence` | Saved copies of every source, structured events, and the evidence lines on reports |
 | Research | `research_queue`, `research_results`, `ai_usage` | The queue, each research pass, daily AI call counts |
 | Reports and picks | `reports`, `picks`, `pick_outcomes` | Every rated report, the picks, and stale flags |
-| Pretend money | `practice_trades` (the app's), `user_trades` (yours), `rejections` | Trades with rules version, reason it moved; stocks the app said no to |
+| Pretend money | `practice_trades` (the app's), `user_trades` (yours), `rejections`, `trade_corrections` | Trades with rules version, reason it moved; stocks the app said no to; notes on trades settled before a split was known |
+| Share count changes | `corporate_actions` (and `daily_prices.basis_date`) | Splits, bonus issues, consolidations and unexplained jumps, with their factor (section 4a) |
 | Your shares | `holdings`, `holding_reviews`, `alerts` | Your real holdings, daily reviews, alerts (de-duplicated by key) |
 | Operations | `runs`, `run_stages`, `backtest_results`, `alembic_version` | Job history and stages |
 
@@ -469,6 +494,8 @@ Run on the server as `docker compose exec -T app stockresearch <command>` (from 
 | `backtest --years N` | Replay the price screen on history |
 | `backup --out DIR` | Consistent copy of the SQLite database |
 | `idle-check` | Exit 0 if the server may switch off (prints why) |
+| `corporate-action add SYMBOL EX_DATE FACTOR [note]` | Record a split or bonus by hand (section 4a) |
+| `corporate-action check` | List everything that spans a recorded split or bonus. Run once after deploying plan v5 |
 
 Add `--plain-logs` for human-readable logs (the default is JSON). A job that finds itself already running exits quietly with code 2, which counts as success.
 
@@ -589,6 +616,7 @@ Test files: `tests/domain/` (rules), `test_adapters.py` (parsing of NSE, Yahoo, 
 - Your own practice portfolio, holdings import and review, exit alerts, stale-pick check.
 - The website (all pages in section 6) with login and security headers.
 - Redesigned morning and weekly emails (22 Nov 2026).
+- Split and bonus correction with correction notes (plan v5, 22 Nov 2026; in the code and tested, **not yet deployed**).
 - Weekday start, idle self-shutdown, S3 backups, Session Manager deploys (plan v4).
 - Tests, lint, type checks, CI workflow, Docker build.
 
@@ -619,7 +647,7 @@ The runbook records the app as deployed on the AWS server, billing budgets creat
 7. **Known data limits:**
    - Financial statements come from Yahoo Finance, not NSE's XBRL files (not parsed).
    - Mutual fund and foreign-investor breakdown is not read; the institutional total plus fund bulk/block deals are used.
-   - NSE's prices are not adjusted for splits and bonus issues, so a recent split can show a false fall.
+   - Splits and bonus issues are corrected (section 4a), but whether NSE's corporate-actions list can be reached from the server is not yet confirmed; if not, the previous-close check still catches and corrects them, one day late for the record. Demergers are flagged, not modelled.
    - Ownership data is quarterly, up to three months old; dates are shown beside every figure.
    - NSE may block some cloud servers; if so, prices fall back to Yahoo and filings/ownership would be missing (run `feasibility` on a new server).
    - Google News links go through a redirect; the real publisher is checked against the allowlist first.
@@ -669,6 +697,7 @@ The runbook records the app as deployed on the AWS server, billing budgets creat
 | 13 Nov | Picks by company size, no repeats, Rs 10,000 per pick, the app's own track record with reasons, stocks it said no to, table-first emails | `docs/PLAN-v3-track-record-and-email.md`, `docs/mockups/email-options.html` |
 | 15 Nov | AWS cost plan: weekday schedule, billing alerts, off-server backups; AWS permissions guide; billing budgets created | `docs/PLAN-v4-aws-cost-and-schedule.md`, `docs/AWS-SETUP-GUIDE.md`, `docs/RUNBOOK.md` section 11 |
 | 22 Nov | Plan v4 built and live: S3 backups, roles, weekday start, self-shutdown, SSH closed, Session Manager deploys. Email templates redesigned for readability. This guide written | `docs/RUNBOOK.md` sections 10 to 12 |
+| 22 Nov | Project put on GitHub. Plan v5: prices corrected for splits and bonus issues, correction notes on affected trades | `docs/PLAN-v5-splits-and-bonus.md` |
 
 | Document | Read it when |
 |---|---|

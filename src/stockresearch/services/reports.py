@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from stockresearch.container import Container
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
-from stockresearch.domain import capgroup, gates, rating, scoring, verification
+from stockresearch.domain import capgroup, corporate_actions, gates, rating, scoring, verification
 from stockresearch.domain.models import TIER_LABEL, AreaScore, PickType, Tier, Verification
 from stockresearch.services import repo
 
@@ -117,8 +117,10 @@ def build(s: Session, c: Container, symbol: str, long_term: bool = False) -> dic
             areas["sentiment"] = AreaScore(None, [
                 f"{articles} article(s) from approved outlets found in 14 days, but their tone is only judged when "
                 "AI reading is on (GEMINI_API_KEY)"])
+    actions = repo.load_actions(s, [symbol]).get(symbol, [])
     gate = gates.check(t, o, repo.surveillance_for(s, symbol), next_results, today,
-                       c.settings.min_turnover_cr, c.settings.max_pledge_pct)
+                       c.settings.min_turnover_cr, c.settings.max_pledge_pct,
+                       corporate_actions.price_warning(actions, today))
     best = scoring.best_positive_status(events, today)
     negatives = scoring.verified_negatives(events, today)
     ai_pick = PickType(ai["pick_type"]) if ai and ai.get("pick_type") in {p.value for p in PickType} else None
@@ -139,6 +141,7 @@ def build(s: Session, c: Container, symbol: str, long_term: bool = False) -> dic
             "gates": {"passed": gate.passed, "failures": gate.failures, "flags": gate.flags},
             "tech": asdict(t),
             "levels": rating.levels(t),
+            "price_adjustments": corporate_actions.describe(actions, today - timedelta(days=420)),
             "fundamentals": asdict(f),
             "ownership": asdict(o),
             "hold_guide": r.hold_guide,

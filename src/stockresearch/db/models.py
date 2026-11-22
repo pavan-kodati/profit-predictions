@@ -22,6 +22,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+Day = date  # for columns in classes that also have a column called `date`
+
 
 class Base(DeclarativeBase):
     type_annotation_map = {dict[str, Any]: JSON, list[Any]: JSON}
@@ -51,6 +53,39 @@ class DailyPrice(Base):
     delivery_pct: Mapped[float | None] = mapped_column(Float)
     series: Mapped[str | None] = mapped_column(String(4))
     source: Mapped[str] = mapped_column(String(16))
+    # The day whose share units the prices are in: the row's own date for NSE (raw), the download day for Yahoo
+    # (already adjusted for splits up to then). Empty means the row's own date. See domain/corporate_actions.py.
+    basis_date: Mapped[Day | None] = mapped_column(Date)
+
+
+class CorporateAction(Base):
+    """A split, bonus issue or consolidation (or an unexplained jump in NSE's previous close). Append-only."""
+
+    __tablename__ = "corporate_actions"
+    __table_args__ = (UniqueConstraint("symbol", "ex_date", "kind", "source"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    ex_date: Mapped[date] = mapped_column(Date)
+    kind: Mapped[str] = mapped_column(String(16))  # split | bonus | consolidation | unreadable | unexplained | manual
+    factor: Mapped[float | None] = mapped_column(Float)  # 5 for a 1-into-5 split; empty = could not be read
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(16))  # nse | nse-prev-close | manual
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class TradeCorrection(Base):
+    """A note on a pretend trade that was settled on unadjusted prices before the split or bonus was known.
+    The trade itself is never edited; the track record shows the note and leaves the trade out of its totals."""
+
+    __tablename__ = "trade_corrections"
+    __table_args__ = (UniqueConstraint("book", "trade_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    book: Mapped[str] = mapped_column(String(8))  # app | user
+    trade_id: Mapped[int] = mapped_column(Integer)
+    symbol: Mapped[str] = mapped_column(String(32))
+    action_id: Mapped[int] = mapped_column(ForeignKey("corporate_actions.id"))
+    note: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
 class FundamentalsSnapshot(Base):

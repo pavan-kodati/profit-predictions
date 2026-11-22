@@ -24,8 +24,10 @@ from stockresearch.container import Container
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
 from stockresearch.domain import attribution, capgroup
+from stockresearch.domain import corporate_actions as ca
 from stockresearch.domain import practice as rules
 from stockresearch.domain.models import PickType
+from stockresearch.services import corporate_actions as ca_service
 from stockresearch.services import reasons, repo
 from stockresearch.services.tracker import cost_model
 
@@ -49,6 +51,33 @@ def _bars(df: pd.DataFrame, after: date | None = None, from_day: date | None = N
     return out
 
 
+def _basis(s: Session, t: Trade) -> date | None:
+    """The day whose share units the trade's stored prices are in: the price date its safety level was set on."""
+    if isinstance(t, m.PracticeTrade):
+        pick = s.get(m.Pick, t.pick_id)
+        return pick.ref_date if pick else t.entry_date
+    report = s.get(m.Report, t.report_id)
+    return report.data_as_of if report else t.entry_date
+
+
+class TradeFrames:
+    """Prices for each trade in its own share units, so a split or bonus while it is held is not a fake crash."""
+
+    def __init__(self, s: Session, prices: dict[str, pd.DataFrame]) -> None:
+        self.s, self.prices = s, prices
+        self.actions = repo.load_actions(s, sorted(prices))
+        self._cache: dict[int, pd.DataFrame | None] = {}
+
+    def at(self, symbol: str, basis: date | None) -> pd.DataFrame | None:
+        df = self.prices.get(symbol)
+        return df if basis is None else ca.rebase(df, self.actions.get(symbol, []), basis)
+
+    def __call__(self, t: Trade) -> pd.DataFrame | None:
+        if id(t) not in self._cache:
+            self._cache[id(t)] = self.at(t.symbol, _basis(self.s, t))
+        return self._cache[id(t)]
+
+
 def _close(t: Trade, exit_: rules.Exit, model: Any) -> None:
     assert t.entry_price is not None
     result = rules.settle(t.quantity, t.entry_price, exit_.price, model)
@@ -69,9 +98,10 @@ def sync(c: Container, detail: list[str]) -> None:
         pending = list(s.scalars(select(m.UserTrade).where(m.UserTrade.status == "pending")))
         symbols = sorted({p.symbol for p in picks} | {t.symbol for t in live} | {u.symbol for u in pending})
         prices = repo.load_bars(s, [*symbols, INDEX_SYMBOL], days=120) if symbols else {}
+        frames = TradeFrames(s, prices)
 
         for p in picks:
-            df = prices.get(p.symbol)
+            df = frames.at(p.symbol, p.ref_date)
             report = s.get(m.Report, p.report_id)
             published = report.created_at if report else repo.now_ist()
             first_day = rules.earliest_entry_day(p.pick_date, published)
@@ -97,7 +127,7 @@ def sync(c: Container, detail: list[str]) -> None:
                 live.append(trade)
 
         for u in pending:
-            df = prices.get(u.symbol)
+            df = frames(u)
             first_day = rules.earliest_entry_day(u.requested_at.date(), u.requested_at)
             later = _bars(df, from_day=first_day) if df is not None else []
             if not later:
@@ -114,7 +144,7 @@ def sync(c: Container, detail: list[str]) -> None:
         s.flush()
 
         for t in live:
-            df = prices.get(t.symbol)
+            df = frames(t)
             if df is None or t.entry_date is None or t.entry_price is None:
                 continue
             bars = _bars(df, from_day=t.entry_date)
@@ -127,7 +157,7 @@ def sync(c: Container, detail: list[str]) -> None:
             if exit_ is not None:
                 _close(t, exit_, model)
                 closed += 1
-        explained = reasons.update(s, live, prices, prices.get(INDEX_SYMBOL), repo.latest_price_date(s))
+        explained = reasons.update(s, live, frames, prices.get(INDEX_SYMBOL), repo.latest_price_date(s))
     detail.append(f"{opened} opened, {closed} closed, {skipped} skipped, {explained} reason(s) refreshed")
 
 
@@ -185,6 +215,7 @@ class TradeView:
     last_close: float | None = None
     open_net: float | None = None  # if sold at the last close, after costs and tax
     days_left: int | None = None
+    correction: str | None = None  # settled on unadjusted prices before a split was known: left out of totals
 
     @property
     def net(self) -> float | None:
@@ -231,6 +262,7 @@ class Summary:
     curve: list[dict[str, Any]] = field(default_factory=list)
     by_rating: list[dict[str, Any]] = field(default_factory=list)
     verdict: rules.Verdict | None = None
+    corrected: int = 0  # trades left out of the totals because of a correction note
 
     @property
     def profit(self) -> float:
@@ -255,7 +287,7 @@ class Summary:
 
     @property
     def in_profit(self) -> int:
-        return sum(1 for v in self.trades if v.t.status in ("open", "closed") and (v.net or 0) > 0)
+        return sum(1 for v in self.trades if v.t.status in ("open", "closed") and not v.correction and (v.net or 0) > 0)
 
 
 def _close_on(df: pd.DataFrame | None, day: date) -> float | None:
@@ -281,17 +313,21 @@ def summarise(c: Container, s: Session, table: TradeTable = m.PracticeTrade) -> 
         return out
     stocks = {st.symbol: st for st in s.scalars(select(m.Stock).where(m.Stock.symbol.in_({t.symbol for t in trades})))}
     prices = repo.load_bars(s, sorted({t.symbol for t in trades} | {INDEX_SYMBOL}), days=400)
+    frames = TradeFrames(s, prices)
     index = prices.get(INDEX_SYMBOL)
     out.as_of = repo.latest_price_date(s)
-    active = [t for t in trades if t.status in ("open", "closed") and t.entry_date]
+    notes = ca_service.corrections(s, "app" if table is m.PracticeTrade else "user")
+    out.corrected = sum(1 for t in trades if t.id in notes)
+    active = [t for t in trades if t.status in ("open", "closed") and t.entry_date and t.id not in notes]
     out.skipped = sum(1 for t in trades if t.status == "skipped")
     out.first_day = min((t.entry_date for t in active if t.entry_date), default=None)
 
     for t in trades:
         stock = stocks.get(t.symbol)
-        v = TradeView(t, stock.name if stock else t.symbol, capgroup.resolve(stock.cap_group if stock else None))
+        v = TradeView(t, stock.name if stock else t.symbol, capgroup.resolve(stock.cap_group if stock else None),
+                      correction=notes.get(t.id))
         out.trades.append(v)
-        if t.status not in ("open", "closed") or t.entry_date is None or t.entry_price is None:
+        if t.status not in ("open", "closed") or t.entry_date is None or t.entry_price is None or v.correction:
             continue
         out.invested += t.buy_value
         end = t.exit_date or out.as_of or t.entry_date
@@ -300,7 +336,7 @@ def summarise(c: Container, s: Session, table: TradeTable = m.PracticeTrade) -> 
             out.closed += 1
             out.winners += t.net_pnl > 0
         else:
-            last = _close_on(prices.get(t.symbol), end)
+            last = _close_on(frames(t), end)
             if last is not None:
                 v.last_close = last
                 v.open_net = rules.settle(t.quantity, t.entry_price, last, model).net
@@ -313,24 +349,25 @@ def summarise(c: Container, s: Session, table: TradeTable = m.PracticeTrade) -> 
             out.index_profit += t.buy_value * (idx_out / idx_in - 1)
         out.fd_profit += rules.fd_interest(t.buy_value, t.entry_date, end)
 
-    finished = [v for v in out.trades if v.t.status == "closed" and v.t.net_pnl is not None]
+    finished = [v for v in out.trades if v.t.status == "closed" and v.t.net_pnl is not None and not v.correction]
     if finished:
         out.best = max(finished, key=lambda v: v.t.net_pnl or 0)
         out.worst = min(finished, key=lambda v: v.t.net_pnl or 0)
-    out.curve = _curve(active, prices, index, model, out.as_of)
+    out.curve = _curve(active, frames, index, model, out.as_of)
     out.by_rating = _by_rating(finished)
     days = (out.as_of - out.first_day).days if out.as_of and out.first_day else 0
     out.verdict = rules.verdict(out.closed, days, out.profit_pct, out.index_pct)
     return out
 
 
-def _curve(active: list[Trade], prices: dict[str, pd.DataFrame], index: pd.DataFrame | None,
+def _curve(active: list[Trade], frames: TradeFrames, index: pd.DataFrame | None,
            model: Any, as_of: date | None) -> list[dict[str, Any]]:
     """Daily profit (in rupees) for the book, the Nifty 50 and a fixed deposit, for the chart."""
     if not active or as_of is None or index is None:
         return []
     start = min(t.entry_date for t in active if t.entry_date)
     # Days come from the shares' own prices, so the chart always reaches the same date as the headline.
+    prices = frames.prices
     stamps = set().union(*(set(pd.to_datetime(prices[t.symbol].index)) for t in active if t.symbol in prices))
     days = sorted(d.date() for d in stamps if start <= d.date() <= as_of)
     points = []
@@ -343,7 +380,7 @@ def _curve(active: list[Trade], prices: dict[str, pd.DataFrame], index: pd.DataF
             if t.status == "closed" and t.exit_date and t.exit_date <= d and t.net_pnl is not None:
                 mine += t.net_pnl
             else:
-                last = _close_on(prices.get(t.symbol), d)
+                last = _close_on(frames(t), d)
                 if last is not None:
                     mine += rules.settle(t.quantity, t.entry_price, last, model).net
             i0, i1 = _open_on(index, t.entry_date), _close_on(index, end)

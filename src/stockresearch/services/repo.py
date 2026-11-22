@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from stockresearch.config import IST
 from stockresearch.db import models as m
-from stockresearch.domain import verification
+from stockresearch.domain import corporate_actions, verification
 from stockresearch.domain.models import (
     EventFact,
     EventType,
@@ -80,7 +80,8 @@ def store_prices(s: Session, rows: list[dict[str, Any]]) -> int:
         stmt = dialect_insert(m.DailyPrice).values(chunk)
         stmt = stmt.on_conflict_do_update(
             index_elements=["symbol", "date"],
-            set_={c: stmt.excluded[c] for c in ("open", "high", "low", "close", "volume", "delivery_pct", "series", "source")},
+            set_={c: stmt.excluded[c] for c in ("open", "high", "low", "close", "volume", "delivery_pct", "series", "source",
+                                               "basis_date")},
             where=(m.DailyPrice.source != "nse") | (stmt.excluded.source == "nse"),
         )
         s.execute(stmt)
@@ -100,12 +101,13 @@ def frame_to_rows(symbol: str, df: pd.DataFrame, source: str) -> list[dict[str, 
     out = []
     now = now_ist()
     for ts, r in zip(pd.to_datetime(df.index), df.to_dict("records"), strict=True):
+        # Yahoo prices are already split-adjusted up to the day they are downloaded: that day is their basis.
         if pd.isna(r["close"]) or not session_finished(ts.date(), now):
             continue
         out.append({
             "symbol": symbol, "date": ts.date(), "open": float(r["open"]), "high": float(r["high"]),
             "low": float(r["low"]), "close": float(r["close"]), "volume": float(r.get("volume") or 0),
-            "delivery_pct": None, "series": None, "source": source,
+            "delivery_pct": None, "series": None, "source": source, "basis_date": now.date(),
         })
     return out
 
@@ -124,10 +126,42 @@ def load_bars(
     if df.empty:
         return out
     df["date"] = pd.to_datetime(df["date"])
+    actions = load_actions(s, sorted(set(df["symbol"])))
     for sym, g in df.groupby("symbol"):
-        out[str(sym)] = g.sort_values("date").set_index("date")[
-            ["open", "high", "low", "close", "volume", "delivery_pct", "series"]]
+        g = g.sort_values("date").set_index("date")
+        frame = g[["open", "high", "low", "close", "volume", "delivery_pct", "series"]]
+        acts = actions.get(str(sym))
+        if acts:  # express every row in the latest share units (splits and bonus issues)
+            basis = [pd.Timestamp(b).date() if pd.notna(b) else d.date()
+                     for b, d in zip(g["basis_date"], g.index, strict=True)]
+            frame = corporate_actions.to_latest(frame, pd.Series(basis, index=frame.index), acts)
+        out[str(sym)] = frame
     return out
+
+
+def load_actions(s: Session, symbols: list[str] | None = None) -> dict[str, list[corporate_actions.Action]]:
+    """Splits, bonus issues and other changes in share count, by symbol."""
+    q = select(m.CorporateAction)
+    if symbols is not None:
+        q = q.where(m.CorporateAction.symbol.in_(symbols))
+    out: dict[str, list[corporate_actions.Action]] = {}
+    for a in s.scalars(q.order_by(m.CorporateAction.ex_date)):
+        out.setdefault(a.symbol, []).append(corporate_actions.Action(a.ex_date, a.factor, a.kind, a.text))
+    return out
+
+
+def add_action(s: Session, symbol: str, ex_date: date, kind: str, factor: float | None, text: str,
+               source: str) -> bool:
+    """Record a corporate action once. Returns True if it was new."""
+    exists = s.scalar(select(m.CorporateAction.id).where(
+        m.CorporateAction.symbol == symbol, m.CorporateAction.ex_date == ex_date, m.CorporateAction.kind == kind,
+        m.CorporateAction.source == source))
+    if exists:
+        return False
+    s.add(m.CorporateAction(symbol=symbol, ex_date=ex_date, kind=kind, factor=factor, text=text[:500], source=source,
+                            created_at=now_ist()))
+    s.flush()
+    return True
 
 
 def technicals_for(bars: pd.DataFrame | None, band_pct: float | None = None) -> Technicals | None:

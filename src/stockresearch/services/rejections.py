@@ -4,7 +4,7 @@ to see whether saying no was right. No pretend money is involved, only the price
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from stockresearch.container import Container
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
 from stockresearch.domain import attribution as rules
+from stockresearch.domain import corporate_actions as ca
 from stockresearch.services import repo
 
 
@@ -49,15 +50,29 @@ def _close_on(df: pd.DataFrame | None, day: date) -> float | None:
     return float(upto["close"].iloc[-1]) if not upto.empty else None
 
 
+def _judged_before_a_split(s: Session) -> list[m.Rejection]:
+    """Finished rejections whose 10 days spanned a split or bonus recorded only after they were judged: re-judged
+    on adjusted prices (a rejection is a follow-up note, not a trade)."""
+    out = []
+    for a in s.scalars(select(m.CorporateAction).where(m.CorporateAction.factor.is_not(None))):
+        out += [r for r in s.scalars(select(m.Rejection).where(
+            m.Rejection.symbol == a.symbol, m.Rejection.final.is_(True), m.Rejection.ref_date < a.ex_date,
+            m.Rejection.updated_at < a.created_at, m.Rejection.reject_date >= a.ex_date - timedelta(days=30)))
+            if r not in out]
+    return out
+
+
 def update(c: Container, detail: list[str]) -> None:
     """Refresh the price change and verdict of every rejection still being followed."""
     updated = finished = 0
     with session_scope(c.sessions) as s:
         rows = list(s.scalars(select(m.Rejection).where(m.Rejection.final.is_(False))))
+        rows += _judged_before_a_split(s)
         prices = repo.load_bars(s, sorted({r.symbol for r in rows} | {INDEX_SYMBOL}), days=90) if rows else {}
+        actions = repo.load_actions(s, sorted(prices))
         index = prices.get(INDEX_SYMBOL)
         for r in rows:
-            df = prices.get(r.symbol)
+            df = ca.rebase(prices.get(r.symbol), actions.get(r.symbol, []), r.ref_date)
             if df is None:
                 continue
             after = df[df.index.date > r.ref_date]  # type: ignore[attr-defined]

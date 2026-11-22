@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from stockresearch.container import Container
 from stockresearch.db import models as m
 from stockresearch.db.session import session_scope
+from stockresearch.domain import corporate_actions as ca
 from stockresearch.domain import exits, portfolio, scoring
 from stockresearch.services import repo, reports
 
@@ -115,6 +116,27 @@ def import_csv(c: Container, content: str, horizon: str) -> ImportResult:
     return ImportResult(added, skipped)
 
 
+# ---------------------------------------------------------------- share units
+
+
+@dataclass
+class Levels:
+    """A holding's quantity, average price and stop in today's share units (after any split or bonus)."""
+
+    quantity: float
+    avg_price: float
+    stop_price: float | None
+    notes: list[str]
+
+
+def levels(h: m.Holding, actions: list[ca.Action]) -> Levels:
+    """The stored figures are in the share units of the day the holding was entered; they are never rewritten."""
+    entered = h.created_at.date()
+    f = ca.factor_between(actions, entered)
+    return Levels(h.quantity * f, h.avg_price / f, h.stop_price / f if h.stop_price else h.stop_price,
+                  ca.describe(actions, entered))
+
+
 # ---------------------------------------------------------------- exit alerts
 
 def exit_alerts(c: Container, detail: list[str]) -> None:
@@ -123,13 +145,15 @@ def exit_alerts(c: Container, detail: list[str]) -> None:
     with session_scope(c.sessions) as s:
         open_holdings = list(s.scalars(select(m.Holding).where(m.Holding.closed.is_(False))))
         bars = repo.load_bars(s, sorted({h.symbol for h in open_holdings}), days=420)
+        actions = repo.load_actions(s, sorted(bars))
         for h in open_holdings:
             t = repo.technicals_for(bars.get(h.symbol))
             if t is None:
                 continue
+            lv = levels(h, actions.get(h.symbol, []))
             negatives = [e for e in scoring.verified_negatives(repo.event_facts(s, h.symbol, today - timedelta(days=3)), today)
                          if e.event_date >= today - timedelta(days=3)]
-            for sig in exits.check(h.symbol, h.horizon, h.avg_price, h.buy_date, h.stop_price, t, negatives):
+            for sig in exits.check(h.symbol, h.horizon, lv.avg_price, h.buy_date, lv.stop_price, t, negatives):
                 created += repo.add_alert(s,f"h{h.id}:{sig.kind}:{sig.key}", h.symbol, sig.kind, sig.severity, sig.message,
                                       holding_id=h.id)
     detail.append(f"{created} new alert(s)")
@@ -171,6 +195,7 @@ def review_all(c: Container, run_id: int | None, detail: list[str]) -> None:
 def review_one(c: Container, s, h: m.Holding, report_id: int | None, today: date) -> m.HoldingReview:
     report = s.get(m.Report, report_id) if report_id else None
     bars = repo.load_bars(s, [h.symbol, "^NSEI"], days=800)
+    lv = levels(h, repo.load_actions(s, [h.symbol]).get(h.symbol, []))
     t = repo.technicals_for(bars.get(h.symbol))
     f = repo.fundamentals_for(s, h.symbol)
     research = repo.latest_research(s, h.symbol, max_age_days=10)
@@ -181,7 +206,7 @@ def review_one(c: Container, s, h: m.Holding, report_id: int | None, today: date
     status = portfolio.health_status(rating_value, quality, f, o, t, negatives, h.horizon, c.settings.max_pledge_pct)
     averaging = None
     if t is not None:
-        averaging = portfolio.averaging_check(h.avg_price, t, _return_between(bars.get(h.symbol), h.buy_date),
+        averaging = portfolio.averaging_check(lv.avg_price, t, _return_between(bars.get(h.symbol), h.buy_date),
                                               _return_between(bars.get("^NSEI"), h.buy_date), status, quality)
     since = datetime.combine(h.buy_date or (today - timedelta(days=90)), datetime.min.time())
     changes = [
@@ -196,9 +221,10 @@ def review_one(c: Container, s, h: m.Holding, report_id: int | None, today: date
         "reasons": status.reasons,
         "rating": rating_value,
         "close": t.close if t else None,
-        "gain": (t.close / h.avg_price - 1) if t else None,
+        "gain": (t.close / lv.avg_price - 1) if t else None,
         "averaging": averaging,
-        "tax": portfolio.tax_timing(h.buy_date, today, bool(t and t.close > h.avg_price)),
+        "tax": portfolio.tax_timing(h.buy_date, today, bool(t and t.close > lv.avg_price)),
+        "adjusted": lv.notes,
         "changes": changes,
     }
     return m.HoldingReview(holding_id=h.id, report_id=report_id, review_date=today, status=status.status.value,
@@ -208,12 +234,14 @@ def review_one(c: Container, s, h: m.Holding, report_id: int | None, today: date
 def portfolio_concentration(s: Session) -> dict[str, Any]:
     holdings = list(s.scalars(select(m.Holding).where(m.Holding.closed.is_(False))))
     bars = repo.load_bars(s, sorted({h.symbol for h in holdings}), days=30)
+    actions = repo.load_actions(s, sorted(bars))
     values: dict[str, float] = {}
     sectors: dict[str, str | None] = {}
     for h in holdings:
         df = bars.get(h.symbol)
-        price = float(df["close"].iloc[-1]) if df is not None and not df.empty else h.avg_price
-        values[h.symbol] = values.get(h.symbol, 0) + price * h.quantity
+        lv = levels(h, actions.get(h.symbol, []))
+        price = float(df["close"].iloc[-1]) if df is not None and not df.empty else lv.avg_price
+        values[h.symbol] = values.get(h.symbol, 0) + price * lv.quantity
         stock = s.get(m.Stock, h.symbol)
         sectors[h.symbol] = stock.industry if stock else None
     return portfolio.concentration(values, sectors)

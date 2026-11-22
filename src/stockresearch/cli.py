@@ -117,6 +117,14 @@ def main(argv: list[str] | None = None) -> int:
     ih.add_argument("file", type=Path)
     ih.add_argument("--horizon", choices=["short", "long"], default="long")
     sub.add_parser("idle-check")
+    cac = sub.add_parser("corporate-action", help="Splits and bonus issues: record one by hand, or list what they affect")
+    ca_sub = cac.add_subparsers(dest="ca_cmd", required=True)
+    caa = ca_sub.add_parser("add", help="Record a split or bonus by hand (factor 5 = 1 share became 5; 2 = 1:1 bonus)")
+    caa.add_argument("symbol")
+    caa.add_argument("ex_date", type=date.fromisoformat, help="ex-date, YYYY-MM-DD")
+    caa.add_argument("factor", type=float)
+    caa.add_argument("note", nargs="?", default="")
+    ca_sub.add_parser("check", help="List trades, holdings, picks and rejections that span a recorded split or bonus")
     bk = sub.add_parser("backup")
     bk.add_argument("--out", type=Path, default=Path("data/backups"))
     args = p.parse_args(argv)
@@ -193,6 +201,17 @@ def _dispatch(args: argparse.Namespace) -> int:
             if rep.excluded_reason:
                 print(f"  excluded: {rep.excluded_reason}")
             print(f"  {len(rep.evidence)} evidence line(s); report id {rid}")
+        return 0
+    if args.cmd == "corporate-action":
+        from stockresearch.services import corporate_actions
+
+        if args.ca_cmd == "add":
+            print(corporate_actions.add_manual(c, args.symbol, args.ex_date, args.factor, args.note))
+            return 0
+        affected = corporate_actions.check(c)
+        for a in affected:
+            print(f"{a.symbol:<12} {a.what}: {a.detail}")
+        print(f"{len(affected)} item(s) span a recorded split or bonus")
         return 0
     if args.cmd == "import-holdings":
         from stockresearch.services import holdings

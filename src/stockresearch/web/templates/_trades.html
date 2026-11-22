@@ -40,8 +40,9 @@
   <span class="s-ic {{ 'win' if t.net_pnl > 0 else 'loss' }}">{{ icon("check" if t.net_pnl > 0 else "x", "ic-sm") }}</span>
   <p>Bought {{ t.quantity }} share{{ 's' if t.quantity != 1 }} of <a href="/stocks/{{ t.symbol }}">{{ v.name }}</a> for {{ t.buy_value|rupees }} on {{ t.entry_date.strftime('%d %b') }}.
     Sold {{ 'the same day' if t.exit_date == t.entry_date else 'on ' ~ t.exit_date.strftime('%d %b') }} for {{ (t.quantity * t.exit_price)|rupees }}, {{ EXIT_WORDS.get(t.exit_reason, '') }}.
-    {{ why(v) }}</p>
-  <span class="amt {{ 'good' if t.net_pnl > 0 else 'bad' }}">{{ t.net_pnl|signed_rupees }}<small>{{ (t.net_pnl / t.buy_value)|pct }} after costs</small></span>
+    {% if v.correction %}<br><strong>Correction:</strong> {{ v.correction }}{% else %}{{ why(v) }}{% endif %}</p>
+  {% if v.correction %}<span class="amt faint">{{ t.net_pnl|signed_rupees }}<small>not counted</small></span>
+  {% else %}<span class="amt {{ 'good' if t.net_pnl > 0 else 'bad' }}">{{ t.net_pnl|signed_rupees }}<small>{{ (t.net_pnl / t.buy_value)|pct }} after costs</small></span>{% endif %}
 </div>
 {% endfor %}
 {% endif %}

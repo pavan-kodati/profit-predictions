@@ -28,8 +28,8 @@
     <tr>
       <td class="stock-cell"><a href="/holdings/{{ h.id }}">{{ names.get(h.symbol, h.symbol) }}</a><span class="sym">{{ h.symbol }}</span></td>
       <td class="muted">{{ 'Short-term' if h.horizon == 'short' else 'Long-term' }}</td>
-      <td class="num">{{ h.quantity|int }}</td>
-      <td class="num">{{ h.avg_price|money }}</td>
+      <td class="num">{{ levels[h.id].quantity|int }}</td>
+      <td class="num">{{ levels[h.id].avg_price|money }}</td>
       <td class="num">{{ rv.data.close|money if rv else '…' }}</td>
       <td class="num {{ 'good' if rv and (rv.data.gain or 0) >= 0 else 'bad' if rv else '' }}">{{ rv.data.gain|pct if rv else '…' }}</td>
       <td>{% if rv %}<span class="chip {{ rv.status }}">{{ rv.status|capitalize }}</span>{% else %}<span class="small faint">After the next morning run</span>{% endif %}</td>

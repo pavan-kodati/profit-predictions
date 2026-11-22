@@ -18,8 +18,11 @@ def check(
     today: date,
     min_turnover_cr: float,
     max_pledge_pct: float,
+    price_warning: str | None = None,
 ) -> GateResult:
     res = GateResult(passed=True)
+    if price_warning:
+        res.failures.append(price_warning)
     if t.turnover_cr < min_turnover_cr:
         res.failures.append(
             f"Low liquidity: average daily trading of Rs {t.turnover_cr:.1f} crore is below Rs {min_turnover_cr:.0f} crore, "

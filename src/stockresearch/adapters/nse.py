@@ -16,7 +16,15 @@ import pandas as pd
 from pypdf import PdfReader
 
 from stockresearch.adapters.http import SourceUnavailable, make_session
-from stockresearch.ports import Deal, Filing, InsiderTrade, PledgeInfo, ShareholdingRow, UniverseRow
+from stockresearch.ports import (
+    CorporateActionRow,
+    Deal,
+    Filing,
+    InsiderTrade,
+    PledgeInfo,
+    ShareholdingRow,
+    UniverseRow,
+)
 
 log = logging.getLogger(__name__)
 
@@ -166,14 +174,17 @@ class NseExchange:
         df = df.rename(columns={
             "SYMBOL": "symbol", "SERIES": "series", "OPEN_PRICE": "open", "HIGH_PRICE": "high",
             "LOW_PRICE": "low", "CLOSE_PRICE": "close", "TTL_TRD_QNTY": "volume", "DELIV_PER": "delivery_pct",
+            "PREV_CLOSE": "prev_close",  # NSE adjusts this on an ex-date: used to catch splits we don't know about
         })
         df["series"] = df["series"].astype(str).str.strip()
         df["symbol"] = df["symbol"].astype(str).str.strip()
         df = df[df["series"].isin(["EQ", "BE", "BZ", "SM", "ST"])].copy()
-        for col in ("open", "high", "low", "close", "volume", "delivery_pct"):
+        if "prev_close" not in df:
+            df["prev_close"] = None
+        for col in ("open", "high", "low", "close", "volume", "delivery_pct", "prev_close"):
             df[col] = pd.to_numeric(df[col].astype(str).str.strip().replace("-", None), errors="coerce")
         df["date"] = day
-        return df[["symbol", "series", "date", "open", "high", "low", "close", "volume", "delivery_pct"]]
+        return df[["symbol", "series", "date", "open", "high", "low", "close", "volume", "delivery_pct", "prev_close"]]
 
     # ------------------------------------------------------------ filings and deals
 
@@ -194,6 +205,12 @@ class NseExchange:
                 url=url, published_at=published,
             ))
         return out
+
+    def corporate_actions(self, start: date, end: date) -> list[CorporateActionRow]:
+        """Corporate actions with an ex-date between `start` and `end` (dividends included; the caller filters)."""
+        rows = self._api("corporates-corporateActions", index="equities",
+                         from_date=f"{start:%d-%m-%Y}", to_date=f"{end:%d-%m-%Y}") or []
+        return parse_corporate_actions(rows)
 
     def bulk_and_block_deals(self) -> list[Deal]:
         out: list[Deal] = []
@@ -302,6 +319,16 @@ class NseExchange:
         except Exception as e:
             log.info("could not read PDF %s: %s", url, e)
             return ""
+
+
+def parse_corporate_actions(rows: list[dict[str, Any]]) -> list[CorporateActionRow]:
+    out = []
+    for x in rows:
+        ex = _dt(str(x.get("exDate") or ""), "%d-%b-%Y", "%d-%m-%Y", "%Y-%m-%d")
+        symbol, subject = str(x.get("symbol") or "").strip(), " ".join(str(x.get("subject") or "").split())
+        if ex and symbol and subject and str(x.get("series") or "EQ").strip() in {"EQ", "BE", "BZ", "SM", "ST", ""}:
+            out.append(CorporateActionRow(symbol, ex.date(), subject))
+    return out
 
 
 def recent_trading_days(end: date, count: int) -> list[date]:

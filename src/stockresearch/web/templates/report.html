@@ -87,6 +87,7 @@
       <p class="calc-out" data-out></p>
     </div>
     <p class="source-note">These levels come from how much the price usually moves. They're a starting point, not advice.</p>
+    {% for line in d.price_adjustments or [] %}<p class="source-note">{{ line }}.</p>{% endfor %}
   </div>
   <div class="card">
     <div class="card-head"><h3>{{ icon("bell") }}I bought this</h3></div>

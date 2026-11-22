@@ -53,6 +53,7 @@
     <div>
       <h2>Do higher ratings do better?</h2>
       <div class="card rating-bars">
+        {% if p.corrected %}<p class="small muted">{{ p.corrected }} trade{{ 's' if p.corrected != 1 }} left out of these figures: settled on prices not yet adjusted for a split or bonus (see the correction note on each).</p>{% endif %}
         {% if p.closed < 20 %}
         <p class="conclusion">Too soon to say: {{ p.closed }} finished trade{{ 's' if p.closed != 1 }} so far, and at least 20 are needed. If the app works, higher ratings should make money more often.</p>
         {% elif p.by_rating|length > 1 %}

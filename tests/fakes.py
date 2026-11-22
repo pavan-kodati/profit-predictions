@@ -12,6 +12,7 @@ import pandas as pd
 
 from stockresearch.ports import (
     Article,
+    CorporateActionRow,
     Deal,
     Filing,
     FundamentalsData,
@@ -68,6 +69,7 @@ class FakeExchange:
         ]
         self.surveillance_list = {"SURV": "Short Term Additional Surveillance Measure (STASM) - Stage I"}
         self.fail_announcements = False
+        self.actions: list[CorporateActionRow] = []
 
     def universe(self) -> list[UniverseRow]:
         return [UniverseRow(s, name, "Capital Goods", f"INE{i:07d}01") for i, (s, (name, _)) in enumerate(UNIVERSE.items())]
@@ -95,6 +97,9 @@ class FakeExchange:
 
             raise SourceUnavailable("NSE blocked")
         return [f for f in self.filings if start <= f.published_at.date() <= end and (symbol is None or f.symbol == symbol)]
+
+    def corporate_actions(self, start: date, end: date) -> list[CorporateActionRow]:
+        return [a for a in self.actions if start <= a.ex_date <= end]
 
     def bulk_and_block_deals(self) -> list[Deal]:
         return [Deal("GOODCO", TODAY, "MOTILAL OSWAL MUTUAL FUND", "BUY", 500_000, 140.0, "block"),

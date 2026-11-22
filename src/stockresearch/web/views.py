@@ -283,8 +283,10 @@ def holdings_page(request: Request, user: User, msg: str = "", err: str = "") ->
                                 .order_by(m.Alert.created_at.desc()).limit(20)))
         conc = holdings.portfolio_concentration(s)
         names = {st.symbol: st.name for st in s.scalars(select(m.Stock).where(m.Stock.symbol.in_({h.symbol for h in rows})))}
+        actions = repo.load_actions(s, sorted({h.symbol for h in rows}))
+        levels = {h.id: holdings.levels(h, actions.get(h.symbol, [])) for h in rows}
         return render(request, "holdings.html", holdings=rows, reviews=reviews, alerts=alerts, conc=conc,
-                      names=names, msg=msg, err=err, today=repo.today_ist())
+                      names=names, msg=msg, err=err, today=repo.today_ist(), levels=levels)
 
 
 @router.get("/holdings/{holding_id}", response_class=HTMLResponse)
@@ -297,7 +299,9 @@ def holding_detail(request: Request, holding_id: int, user: User) -> HTMLRespons
         reviews = list(s.scalars(select(m.HoldingReview).where(m.HoldingReview.holding_id == h.id)
                                  .order_by(m.HoldingReview.id.desc()).limit(10)))
         alerts = list(s.scalars(select(m.Alert).where(m.Alert.holding_id == h.id).order_by(m.Alert.created_at.desc())))
-        return render(request, "holding.html", h=h, name=repo.stock_name(s, h.symbol), reviews=reviews, alerts=alerts)
+        lv = holdings.levels(h, repo.load_actions(s, [h.symbol]).get(h.symbol, []))
+        return render(request, "holding.html", h=h, lv=lv, name=repo.stock_name(s, h.symbol), reviews=reviews,
+                      alerts=alerts)
 
 
 def _float(x: str) -> float | None:

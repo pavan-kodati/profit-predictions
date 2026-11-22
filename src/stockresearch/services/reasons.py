@@ -3,6 +3,7 @@ in `domain/attribution.py`. Updated daily while a trade is open and frozen when 
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime, time
 from typing import Any
 
@@ -79,16 +80,17 @@ def _market_headlines(s: Session, index: pd.DataFrame | None, start: date, end: 
     return [rules.Headline(d.title, d.url) for d in docs]
 
 
-def update(s: Session, trades: list[Any], prices: dict[str, pd.DataFrame], index: pd.DataFrame | None,
-           as_of: date | None) -> int:
-    """Set the reason on each trade (app or user). `trades` are open trades and trades closed in this run."""
+def update(s: Session, trades: list[Any], frame_for: Callable[[Any], pd.DataFrame | None],
+           index: pd.DataFrame | None, as_of: date | None) -> int:
+    """Set the reason on each trade (app or user). `trades` are open trades and trades closed in this run.
+    `frame_for` gives a trade's prices in the same share units as its stored entry price."""
     cache: dict[str, float | None] = {}
     done = 0
     for t in trades:
         if t.entry_date is None or not t.entry_price:
             continue
         end = t.exit_date or as_of or t.entry_date
-        last = t.exit_price if t.exit_price is not None else _close_on(prices.get(t.symbol), end)
+        last = t.exit_price if t.exit_price is not None else _close_on(frame_for(t), end)
         if last is None:
             continue
         reason = rules.explain(
