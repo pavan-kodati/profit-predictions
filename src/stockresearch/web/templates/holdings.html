@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, tone %}
+{% block title %}Holdings · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Your holdings</h1>
+    <p>Health, what changed, and a status with evidence for each holding. The keep, sell or average decision is yours.</p>
+  </div>
+</div>
+{% if msg %}<div class="notice good">{{ icon("check", "ic-sm") }}<span>{{ msg }}</span></div>{% endif %}
+{% if err %}<div class="notice error">{{ icon("alert", "ic-sm") }}<span>{{ err }}</span></div>{% endif %}
+
+{% set reviewed = reviews.values()|select|list %}
+<section class="metrics" aria-label="Portfolio summary">
+  <div class="metric"><div class="metric-label">{{ icon("briefcase", "ic-sm") }}Holdings</div><div class="metric-value">{{ holdings|length }}</div><div class="metric-sub">being watched</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("check", "ic-sm") }}Case intact</div><div class="metric-value good">{{ reviewed|selectattr('status', 'equalto', 'intact')|list|length }}</div><div class="metric-sub">no negative evidence</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("info", "ic-sm") }}Weakening</div><div class="metric-value warn">{{ reviewed|selectattr('status', 'equalto', 'weakening')|list|length }}</div><div class="metric-sub">worth a closer look</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("alert", "ic-sm") }}Broken</div><div class="metric-value bad">{{ reviewed|selectattr('status', 'equalto', 'broken')|list|length }}</div><div class="metric-sub">original case no longer holds</div></div>
+</section>
+
+{% if holdings %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Stock</th><th>Horizon</th><th class="num">Qty</th><th class="num">Avg price</th><th class="num">Last</th><th class="num">Gain</th><th>Status</th><th class="num">Rating</th><th></th></tr></thead>
+    <tbody>
+    {% for h in holdings %}{% set rv = reviews[h.id] %}
+    <tr>
+      <td class="stock-cell"><a href="/holdings/{{ h.id }}">{{ names.get(h.symbol, h.symbol) }}</a><span class="sym">{{ h.symbol }}</span></td>
+      <td class="muted">{{ 'Short-term' if h.horizon == 'short' else 'Long-term' }}</td>
+      <td class="num">{{ h.quantity|int }}</td>
+      <td class="num">{{ h.avg_price|money }}</td>
+      <td class="num">{{ rv.data.close|money if rv else '…' }}</td>
+      <td class="num {{ 'good' if rv and (rv.data.gain or 0) >= 0 else 'bad' if rv else '' }}">{{ rv.data.gain|pct if rv else '…' }}</td>
+      <td>{% if rv %}<span class="chip {{ rv.status }}">{{ rv.status|capitalize }}</span>{% else %}<span class="small faint">After the next morning run</span>{% endif %}</td>
+      <td class="num">{% if rv %}<span class="score-pill {{ tone(rv.data.rating) }}">{{ '%.1f'|format(rv.data.rating) }}</span>{% endif %}</td>
+      <td><form class="inline" method="post" action="/holdings/{{ h.id }}/close" data-confirm="Mark {{ h.symbol }} as sold? It will stop being watched."><button class="btn btn-sm" type="submit">Sold</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty">{{ icon("briefcase") }}<h3>Start watching your holdings</h3><p>Add a holding below or import your broker's holdings file.</p></div>
+{% endif %}
+
+{% if conc.flags or alerts %}
+<div class="grid-2">
+  {% if conc.flags %}
+  <div>
+    <h2>Concentration</h2>
+    <div class="card">{% for f in conc.flags %}<div class="callout warn">{{ icon("alert", "ic-sm") }}<span>{{ f }}</span></div>{% endfor %}</div>
+  </div>
+  {% endif %}
+  {% if alerts %}
+  <div>
+    <h2>Alerts</h2>
+    <div class="card">{% for a in alerts %}<div class="callout"><span class="chip {{ a.severity }}">{{ a.severity }}</span><span><span class="small faint">{{ a.created_at.strftime('%d %b %H:%M') }}</span> {{ a.message }}</span></div>{% endfor %}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div>
+    <h2>Add a holding</h2>
+    <form class="card" method="post" action="/holdings">
+      <div class="form-row">
+        <div class="field"><label for="s">NSE symbol or ISIN</label><input id="s" type="text" name="symbol" placeholder="TATAPOWER" required></div>
+        <div class="field"><label for="q2">Quantity</label><input id="q2" type="number" name="quantity" min="1" step="1" placeholder="25" required></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label for="a">Average price</label><input id="a" type="text" name="avg_price" placeholder="412.50" required></div>
+        <div class="field"><label for="b">Buy date</label><input id="b" type="date" name="buy_date" max="{{ today }}"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label for="st">Stop level (optional)</label><input id="st" type="text" name="stop_price" placeholder="380"></div>
+        <div class="field"><label for="hz">Horizon</label><select id="hz" name="horizon"><option value="long">Long-term</option><option value="short">Short-term</option></select></div>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon("plus", "ic-sm") }}Add holding</button>
+    </form>
+  </div>
+  <div>
+    <h2>Import from your broker</h2>
+    <form class="card" method="post" action="/holdings/import" enctype="multipart/form-data">
+      <p class="small muted">Export your holdings as CSV from Zerodha Console, Groww, Upstox or similar. The file needs symbol (or ISIN), quantity and average price; a buy date column enables tax-timing checks.</p>
+      <div class="field"><label for="f">CSV file</label><input id="f" type="file" name="file" accept=".csv,text/csv" required></div>
+      <div class="field"><label for="hz2">Treat as</label><select id="hz2" name="horizon"><option value="long">Long-term</option><option value="short">Short-term</option></select></div>
+      <button class="btn" type="submit">{{ icon("upload", "ic-sm") }}Import</button>
+      <p class="source-note">{{ icon("lock", "ic-sm") }} Quantities and prices stay on this server and are never sent to the AI.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}

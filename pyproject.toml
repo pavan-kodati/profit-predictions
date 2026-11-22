@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stockresearch"
+version = "1.0.0"
+description = "Personal research assistant for the Indian stock market: rated picks with verified evidence."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13",
+    "fastapi>=0.115",
+    "feedparser>=6.0",
+    "google-genai>=1.0",
+    "itsdangerous>=2.2",
+    "jinja2>=3.1",
+    "pandas>=2.2",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pypdf>=4.0",
+    "python-multipart>=0.0.9",
+    "requests>=2.32",
+    "sqlalchemy>=2.0",
+    "uvicorn>=0.30",
+    "yfinance>=0.2.50",
+]
+
+[project.optional-dependencies]
+dev = ["httpx", "mypy", "pandas-stubs", "pytest", "pytest-cov", "ruff", "types-requests"]
+
+[project.scripts]
+stockresearch = "stockresearch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+stockresearch = ["web/templates/*.html", "web/static/*", "notifications/templates/*.html", "notifications/templates/*.txt",
+                 "migrations/*.mako", "migrations/*.py", "migrations/versions/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["S101", "S311", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]
+"src/stockresearch/migrations/*" = ["E501", "W291", "I001"]
+"tests/test_adapters.py" = ["E501"]
+"src/stockresearch/web/glossary.py" = ["E501"]
+"src/stockresearch/presenters.py" = ["E501"]
+"src/stockresearch/db/models.py" = ["RUF012"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+packages = ["stockresearch"]
+mypy_path = "src"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["stockresearch.migrations.*"]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["stockresearch"]
+omit = ["src/stockresearch/migrations/*"]

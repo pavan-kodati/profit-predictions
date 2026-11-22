@@ -1,0 +1,21 @@
+{% set p = summary %}How the app's picks did, week ending {{ today.strftime('%a %d %b %Y') }}
+(pretend money, real prices, real costs and tax; {{ amount|inr }} goes into every pick)
+
+{% if p.invested %}{{ p.bought }} pick{{ 's' if p.bought != 1 }} so far. {{ p.invested|inr }} of pretend money is now worth {{ (p.invested + p.profit)|inr }}: {{ 'up' if p.profit >= 0 else 'down' }} {{ p.profit|abs|inr }} after costs and tax. {{ p.in_profit }} in profit, {{ p.bought - p.in_profit }} not.
+Same money in the Nifty 50: {{ '+' if p.index_profit >= 0 else '-' }}{{ p.index_profit|abs|inr }}. In a fixed deposit: +{{ p.fd_profit|inr }}.
+{{ p.verdict.title }}. {{ p.verdict.detail }}
+{% else %}Nothing has been bought yet.
+{% endif %}{% for v in rows %}{% set t = v.t %}
+- {{ v.name }}: bought at {{ t.entry_price|inr2 }} ({{ t.quantity }} share{{ 's' if t.quantity != 1 }}), {{ 'sold at' if t.status == 'closed' else 'now' }} {{ v.price_now|inr2 if v.price_now is not none else '...' }}, gain {{ (v.net or 0)|inr(signed=true) }} ({{ '%+.1f'|format((v.net_pct or 0) * 100) }}%) after costs. {% if t.status == 'closed' %}Sold {{ t.exit_date.strftime('%d %b') }}, {{ exit_words.get(t.exit_reason, '') }}.{% else %}Still holding.{% endif %}
+  Why: {{ v.reason_title }}{% if t.reason_text %}. {{ t.reason_text }}{% endif %}
+{% endfor %}{% if more %}
+And {{ more }} more pick{{ 's' if more != 1 }}.
+{% endif %}{% if waiting %}
+Waiting to be bought: {{ waiting|map(attribute='name')|map('trim', '.')|join(', ') }}.
+{% endif %}{% if rej.rows %}
+STOCKS THE APP SAID NO TO{% if rej.judged %} ({{ rej.right }} of {{ rej.judged }} judged were right to skip){% endif %}
+{% for v in rej.rows[:6] %}- {{ v.name }}: {{ ((v.r.ret or 0) * 100)|round(1) if v.r.ret is not none else '...' }}% since {{ v.r.reject_date.strftime('%d %b') }}. {{ v.verdict_title }}.
+{% endfor %}{% endif %}
+Full track record: {{ app_url }}/track-record
+
+{{ disclaimer }}

@@ -1,0 +1,32 @@
+Your stock research for {{ today.strftime('%a %d %b') }}
+{% if alerts %}
+ALERTS ON SHARES YOU HOLD
+{% for a in alerts %}- {{ a.message }}
+{% endfor %}{% endif %}
+{% if not picks %}
+{% if rated %}No new picks today. Nothing passed every check, and waiting is a good choice.{% else %}No shares were rated today.{% endif %}
+{% else %}
+{{ picks|length }} new pick{{ 's' if picks|length != 1 }}, with {{ amount|inr }} each. Sell level = sell if the price falls to it.
+{% for g in groups if g.picks %}
+== {{ g.label|upper }} ({{ g.hint }}) ==
+{% for p in g.picks %}{% set pl = p.plain %}{% set plan = pl.plan %}
+{{ p.name }} ({{ p.symbol }}), {{ plan.price|inr2 }} a share
+  Rating: {{ '%.1f'|format(p.rating) }} out of 5 ({{ pl.rating_title }}). {{ pl.label }}.
+  Buy {{ plan.shares }} share{{ 's' if plan.shares != 1 }} = {{ plan.cost|inr }}{% if plan.over_budget %} (one share costs more than {{ amount|inr }}){% endif %}
+  Sell if it falls to {{ plan.stop|inr2 }}. Most you'd lose: {{ plan.loss|inr }}.
+  Otherwise hold and review by {{ plan.review_by.strftime('%a %d %b') }}.
+  Why it might go up: {{ pl.why[0] }}
+  What could go wrong: {{ pl.risks[0] }}
+{% for e in p.evidence %}  Source: {{ e.claim|truncate(90) }} [{{ e.trust_label }}] {{ e.url }}
+{% endfor %}  Full report: {{ p.url }}
+{% endfor %}{% endfor %}{% set empty = groups|rejectattr('picks')|list %}{% if empty %}
+No picks today in: {{ empty|map(attribute='label')|join(', ')|lower }}.
+{% endif %}{% endif %}{% if running or waiting %}
+STILL RUNNING FROM EARLIER DAYS (not repeated as new picks)
+{% for w in waiting %}- {{ w.name }}, picked {{ w.pick.pick_date.strftime('%a %d %b') }}: bought at the next market open.
+{% endfor %}{% for v in running %}- {{ v.name }}: bought at {{ v.t.entry_price|inr2 }}, now {{ v.price_now|inr2 if v.price_now is not none else '...' }}, gain {{ (v.net or 0)|inr(signed=true) }} after costs ({{ '%+.1f'|format((v.net_pct or 0) * 100) }}%), {{ v.days_left }} market day{{ 's' if v.days_left != 1 }} left.
+{% endfor %}{% endif %}
+These are options to consider, not a list to buy in full.
+App: {{ app_url }}
+
+{{ disclaimer }}

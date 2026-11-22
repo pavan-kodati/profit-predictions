@@ -1,0 +1,103 @@
+{% extends "email_base.html" %}
+{% from "_email_ui.html" import tile, heading, positions, button, color %}
+{% block title %}Your stock research for {{ today.strftime('%a %d %b') }}{% endblock %}
+{% block kicker %}{{ today.strftime('%a %d %b %Y') }}{% endblock %}
+{% block preheader %}{% if picks %}{{ picks|length }} new pick{{ 's' if picks|length != 1 }}: {{ names }}. Shares, sell level and the most you'd lose, for {{ amount|inr }} each.{% else %}No new picks today. Waiting is a valid answer.{% endif %}{% endblock %}
+{% block body %}
+<h1 class="tx" style="margin:0 0 6px;font-size:24px;line-height:1.3;font-weight:600;letter-spacing:-0.01em;color:#111827;">Your stock research for {{ today.strftime('%a %d %b') }}</h1>
+<p class="mu" style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;">
+  {% if picks %}{{ picks|length }} new pick{{ 's' if picks|length != 1 }}{% if running %} and {{ running|length }} earlier pick{{ 's' if running|length != 1 }} still running{% endif %}. Each has a checked reason to rise in the next few weeks.
+  {% else %}No new picks today.{% if running %} {{ running|length }} earlier pick{{ 's' if running|length != 1 }} still running.{% endif %}{% endif %}
+  {% if not ai %} AI reading is off today, so ratings use official data only.{% endif %}
+  {% if pending %} Some research was still running, so a few shares were rated on the information already collected.{% endif %}</p>
+
+{% if alerts %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td class="soft bd" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;">
+  <b class="bad" style="color:#b91c1c;">Alerts on shares you hold</b>
+  <ul style="margin:6px 0 0 18px;padding:0;">{% for a in alerts %}<li style="margin:4px 0;">{{ a.message }}</li>{% endfor %}</ul>
+</td></tr></table>
+{% endif %}
+
+{% if not picks %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr><td class="bd" style="border:1px solid #e5e7eb;border-radius:10px;padding:18px;font-size:14px;line-height:1.6;">
+  {% if rated %}<b>Nothing passed every check today.</b> A pick needs a rating of {{ min_rating }} or more, a confirmed reason and no safety problems. Waiting is a perfectly good choice.
+  {% else %}No shares were rated today.{% endif %}
+</td></tr></table>
+{% else %}
+
+{{ heading("Today's picks", "Buy amounts assume " ~ (amount|inr) ~ " for each pick.") }}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="bd" style="border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+  <tr class="soft" style="background:#f9fafb;">
+    <td class="mu c c1" style="padding:10px 8px 10px 14px;font-size:12px;color:#6b7280;">Stock</td>
+    <td class="mu c" align="right" style="padding:10px 8px;font-size:12px;color:#6b7280;">Rating</td>
+    <td class="mu c" align="right" style="padding:10px 8px;font-size:12px;color:#6b7280;">Buy</td>
+    <td class="mu c c4" align="right" style="padding:10px 14px 10px 8px;font-size:12px;color:#6b7280;">Sell if below</td>
+  </tr>
+  {% for g in groups if g.picks %}
+  <tr><td colspan="4" class="soft bd" style="padding:9px 14px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#6b7280;"><b class="tx" style="color:#111827;">{{ g.label }}</b> &nbsp;{{ g.hint }}</td></tr>
+  {% for p in g.picks %}{% set plan = p.plain.plan %}{% set tone = 'good' if p.rating >= 4 else 'warn' %}
+  <tr>
+    <td class="bd c c1" valign="top" style="padding:14px 8px 14px 14px;border-top:1px solid #e5e7eb;">
+      <a href="#{{ p.symbol }}" class="tx" style="font-size:14px;font-weight:600;line-height:1.35;color:#111827;text-decoration:none;">{{ p.name }}</a>
+      <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:3px;">{{ plan.price|inr2 }} a share</div></td>
+    <td class="bd c {{ tone }}" valign="top" align="right" style="padding:14px 8px;border-top:1px solid #e5e7eb;font-size:15px;font-weight:600;color:{{ color(tone) }};">{{ '%.1f'|format(p.rating) }}</td>
+    <td class="bd c" valign="top" align="right" style="padding:14px 8px;border-top:1px solid #e5e7eb;">
+      <div class="tx" style="font-size:14px;line-height:1.35;color:#111827;white-space:nowrap;">{{ plan.shares }} share{{ 's' if plan.shares != 1 }}</div>
+      <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:3px;">{{ plan.cost|inr }}</div></td>
+    <td class="bd c c4" valign="top" align="right" style="padding:14px 14px 14px 8px;border-top:1px solid #e5e7eb;">
+      <div class="tx" style="font-size:14px;line-height:1.35;color:#111827;white-space:nowrap;">{{ plan.stop|inr }}</div>
+      <div class="bad" style="font-size:12px;line-height:1.4;color:#b91c1c;margin-top:3px;">lose up to {{ plan.loss|inr }}</div></td>
+  </tr>
+  {% endfor %}
+  {% endfor %}
+</table>
+{% set empty = groups|rejectattr('picks')|list %}{% if empty %}<p class="mu" style="margin:8px 2px 0;font-size:12px;line-height:1.6;color:#6b7280;">No picks today in: {{ empty|map(attribute='label')|join(', ')|lower }}.</p>{% endif %}
+{% endif %}
+
+{% if running %}
+{{ heading("Still running from earlier days", "Not repeated as new picks. What the app paid, the price now, and the gain.") }}
+{{ positions(running) }}
+{% endif %}
+{% if waiting %}<p class="mu" style="margin:10px 2px 0;font-size:13px;line-height:1.6;color:#6b7280;">Waiting to be bought at the next market open: {{ waiting|map(attribute='name')|map('trim', '.')|join(', ') }}.</p>{% endif %}
+
+{% if picks %}
+{{ heading("Details for each new pick") }}
+{% for g in groups %}{% for p in g.picks %}{% set pl = p.plain %}{% set plan = pl.plan %}{% set tone = 'good' if p.rating >= 4 else 'warn' %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="bd" id="{{ p.symbol }}" style="border:1px solid #e5e7eb;border-radius:12px;border-collapse:separate;margin:0 0 16px;"><tr><td style="padding:22px 20px 20px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td valign="top"><div class="tx" style="font-size:17px;font-weight:600;line-height:1.35;color:#111827;">{{ p.name }}</div>
+      <div class="mu" style="font-size:13px;line-height:1.5;color:#6b7280;margin-top:2px;">{{ g.singular }} &middot; {{ p.symbol }} &middot; {{ p.close|inr2 }} a share</div></td>
+    <td valign="top" align="right" style="padding-left:14px;white-space:nowrap;">
+      <div class="{{ tone }}" style="font-size:26px;font-weight:600;line-height:1;color:{{ color(tone) }};">{{ '%.1f'|format(p.rating) }}</div>
+      <div class="mu" style="font-size:12px;color:#6b7280;margin-top:4px;">out of 5</div></td>
+  </tr></table>
+  <div style="margin-top:12px;"><span class="{{ tone }}" style="display:inline-block;padding:3px 10px;border-radius:999px;background:{{ '#ecfdf5' if tone == 'good' else '#fffbeb' }};font-size:12px;font-weight:600;color:{{ color(tone) }};">{{ pl.rating_title }}</span>
+    <span class="mu" style="font-size:12px;color:#6b7280;margin-left:6px;">{{ pl.label }}</span></div>
+
+  <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:18px;">Why it might go up</div>
+  <div style="font-size:14.5px;line-height:1.6;margin-top:3px;">{{ pl.why[0]|truncate(260) }}</div>
+  <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin-top:14px;">What could go wrong</div>
+  <div style="font-size:14.5px;line-height:1.6;margin-top:3px;">{{ pl.risks[0]|truncate(200) }}</div>
+
+  <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin:20px 0 8px;">If you put {{ amount|inr }} into it</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    {{ tile("Buy", plan.shares ~ (" share" if plan.shares == 1 else " shares"), "at " ~ (plan.price|inr)) }}
+    {{ tile("You pay", plan.cost|inr, "1 share costs more" if plan.over_budget else "of " ~ (amount|inr)) }}
+    {{ tile("Sell if it falls to", plan.stop|inr, (plan.stop_pct * 100)|round(1) ~ "% lower") }}
+    {{ tile("Most you'd lose", plan.loss|inr, "if sold there", "bad") }}
+  </tr></table>
+  <div class="mu" style="font-size:12.5px;line-height:1.6;color:#6b7280;margin-top:2px;">Otherwise hold, and review it by {{ plan.review_by.strftime('%a %d %b') }}.</div>
+
+  {% if p.evidence %}
+  <div class="mu" style="font-size:12px;line-height:1.4;color:#6b7280;margin:20px 0 6px;">Check it yourself</div>
+  {% for e in p.evidence[:2] %}
+  <div style="font-size:13.5px;line-height:1.55;margin:0 0 6px;"><a href="{{ e.url }}" class="tx" style="color:#111827;">{{ e.claim|truncate(80) }}</a>
+    <span class="mu" style="color:#6b7280;"> {% if e.published_at %}{{ e.published_at.strftime('%d %b') }} &middot; {% endif %}{{ e.trust_label }}</span></div>
+  {% endfor %}
+  {% endif %}
+  {{ button(p.url, 'Read the full report') }}
+</td></tr></table>
+{% endfor %}{% endfor %}
+<p class="mu" style="margin:6px 2px 0;font-size:12.5px;line-height:1.6;color:#6b7280;">These are options to consider, not a list to buy in full. Practise first: press "Practise buying this" on any report to try it with pretend money.</p>
+{% endif %}
+{% endblock %}

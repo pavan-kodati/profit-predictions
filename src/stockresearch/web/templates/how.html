@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}How it works · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>How it works</h1>
+    <p>Everything this app does, explained without jargon. Five minutes to read.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="card how-section">
+    <div class="card-head"><h3>{{ icon("info") }}What this app is</h3></div>
+    <p>A research assistant for the Indian stock market. Every evening it looks at about 750 companies listed on the
+      National Stock Exchange (NSE). Every morning at 8 am it emails you up to {{ per_group }} shares in each
+      size group (large, mid-size and small companies) that have a real, checkable reason to rise over the next few days to three weeks.</p>
+    <p class="muted">It is not a prediction and not advice. Shares can always fall. It shows its homework so you can decide.</p>
+  </section>
+
+  <section class="card how-section">
+    <div class="card-head"><h3>{{ icon("filter") }}How a share gets picked</h3></div>
+    <ol class="steps">
+      <li><span><b>Safety first.</b> Shares that are hard to sell, on the exchange's watch list, or whose owners have borrowed heavily against them are dropped.</span></li>
+      <li><span><b>Something is happening.</b> The price is rising, more people are trading it, or the company announced something.</span></li>
+      <li><span><b>Homework.</b> The app reads the company's official announcements, results, owner holdings and news from trusted newspapers.</span></li>
+      <li><span><b>A score from 1 to 5,</b> based on six things: business health, price trend, fresh news, pending orders, who owns it, and what the news says.</span></li>
+      <li><span><b>Only strong cases are picked:</b> {{ min_rating }} or higher, with a confirmed reason and every safety check passed. Some days nothing qualifies, and the email says so.</span></li>
+      <li><span><b>No repeats.</b> A share is a new pick once. While its pretend trade is running it is listed under "Still running", not picked again.</span></li>
+    </ol>
+  </section>
+</div>
+
+<h2>What the ratings mean</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th class="num">Rating</th><th>In words</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td class="num"><span class="score-pill r-good">4.5 to 5</span></td><td>Very strong case</td><td class="muted">Confirmed good news, healthy company, price not overheated</td></tr>
+      <tr><td class="num"><span class="score-pill r-good">4 to 4.5</span></td><td>Strong case</td><td class="muted">A pick. Read the reasons and risks before buying</td></tr>
+      <tr><td class="num"><span class="score-pill r-good">3.5 to 4</span></td><td>Good case</td><td class="muted">A pick, with more caveats</td></tr>
+      <tr><td class="num"><span class="score-pill r-mid">2.75 to 3.5</span></td><td>Not strong enough yet: wait and watch</td><td class="muted">Not a pick. Usually the reason isn't confirmed yet, or the price already jumped</td></tr>
+      <tr><td class="num"><span class="score-pill r-bad">below 2.75</span></td><td>Weak case or avoid</td><td class="muted">Something negative was found</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>What the labels mean</h2>
+<div class="grid-3">
+  <div class="card"><span class="chip fundamentals">Backed by business results</span>
+    <p class="label-explain">The company itself reported something solid, like a big profit jump, and the price hasn't run too far yet.</p>
+    <p class="small"><b>Hold:</b> up to 3 weeks.</p></div>
+  <div class="card"><span class="chip mixed">Some real news, some excitement</span>
+    <p class="label-explain">There's a real reason to like it, but also a catch: the news is only partly confirmed, the business is average, or the price already jumped.</p>
+    <p class="small"><b>Hold:</b> up to 2 weeks, and sell if it falls to the safety level.</p></div>
+  <div class="card"><span class="chip hype">Mostly excitement</span>
+    <p class="label-explain">The price is rising mainly because people are excited, not because the business improved.</p>
+    <p class="small"><b>Hold:</b> 3 to 5 trading days only. Decide when you'll sell before you buy.</p></div>
+</div>
+
+<div class="grid-2">
+  <section class="card how-section">
+    <div class="card-head"><h3>{{ icon("shield") }}Where the information comes from</h3></div>
+    <ul class="reasons">
+      <li class="plus"><b>Official company announcements</b> to the NSE. Companies are punished for false ones, so these count on their own.</li>
+      <li class="plus"><b>Trusted newspapers</b> (Economic Times, Mint, Business Standard, Moneycontrol and others). A story counts fully only when two of them report it.</li>
+      <li><b>Broker opinions</b> ("buy, target Rs 500") are shown, but barely count: they're opinions, not facts.</li>
+      <li class="minus"><b>Never used:</b> social media, WhatsApp forwards, Telegram tips, YouTube, blogs.</li>
+    </ul>
+    <p class="source-note">Every claim in a report links to its source and to a saved copy, so you can read it yourself.</p>
+  </section>
+
+  <section class="card how-section">
+    <div class="card-head"><h3>{{ icon("target") }}How the app is held to account</h3></div>
+    <p>The <a href="/track-record">App's track record</a> pretends to buy every pick with {{ amount|rupees }}, using real
+      prices, real costs and tax, and sells by fixed rules. It shows, in rupees, what happened to each pick and why:
+      the business, the whole market, its sector, or no clear reason. It also follows the stocks the app said no to.</p>
+    <p>In <a href="/practice">My practice portfolio</a> you can make your own pretend trades the same way.</p>
+    <p class="muted">Use real money only if the track record is good over at least 20 finished trades.</p>
+  </section>
+</div>
+
+<h2>Company sizes</h2>
+<div class="grid-3">
+  {% for g in GROUPS %}
+  <div class="card"><b>{{ GROUP_LABEL[g] }}</b><p class="label-explain">{{ GROUP_HINT[g]|capitalize }}.</p></div>
+  {% endfor %}
+</div>
+<p class="source-note">Sizes come from the exchange's official lists: the Nifty 100 for large companies and the Nifty Midcap 150 for mid-size ones.</p>
+
+<h2>Words you'll see</h2>
+<div class="glossary">
+  {% for key, entry in GLOSSARY.items() %}
+  <div id="term-{{ key }}"><b>{{ entry[0] }}</b><p>{{ entry[1] }}</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

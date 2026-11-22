@@ -1,0 +1,32 @@
+{# Pick card in plain words. Expects `r` (Report), `sparks` and `plains`. #}
+{% from "_ui.html" import icon, ring, spark, plan_strip %}
+{% set ev_for = r.evidence|selectattr('stance', 'equalto', 'for')|list %}
+{% set ev_against = r.evidence|selectattr('stance', 'equalto', 'against')|list %}
+{% set t = r.data.tech %}
+{% set pl = plains[r.id] %}
+<article class="card pick">
+  <div class="pick-top">
+    <div>
+      <a class="pick-name" href="/reports/{{ r.id }}">{{ r.data.name }}</a>
+      <div class="pick-meta">{{ r.symbol }}{% if r.data.industry %} · {{ r.data.industry }}{% endif %} · {{ t.close|money }} a share</div>
+      <div class="rating-words {{ pl.rating_tone }}">{{ pl.rating_title }}</div>
+    </div>
+    {{ ring(r.rating) }}
+  </div>
+  {{ spark(sparks.get(r.symbol)) }}
+  <div class="chips">
+    <span class="chip {{ r.pick_type }}">{{ pl.label }}</span>
+    <span class="chip">{{ icon("clock", "ic-sm") }}Hold up to {{ pl.plan.hold_days }} market days</span>
+  </div>
+  <div class="plain-box">
+    <div class="plain-row"><span class="plain-ic good">{{ icon("trend", "ic-sm") }}</span>
+      <div><h3>Why it might go up</h3><p>{{ pl.why[0] }}</p></div></div>
+    <div class="plain-row"><span class="plain-ic warn">{{ icon("alert", "ic-sm") }}</span>
+      <div><h3>What could go wrong</h3><p>{{ pl.risks[0] }}</p></div></div>
+  </div>
+  {{ plan_strip(pl.plan) }}
+  <div class="pick-foot">
+    <a class="sources" href="/reports/{{ r.id }}">{{ icon("file", "ic-sm") }}Full report · {{ ev_for|length }} sources for, {{ ev_against|length }} against</a>
+    <a class="btn btn-sm" href="/reports/{{ r.id }}#practise">{{ icon("wallet", "ic-sm") }}Practise buying this</a>
+  </div>
+</article>

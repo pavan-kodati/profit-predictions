@@ -1,0 +1,12 @@
+{# One evidence line (plan 2.4). Expects `e` (EvidenceRow). #}
+{% from "_ui.html" import icon %}
+<div class="evidence {{ e.stance }}">
+  <div class="evidence-claim"><span class="dot" aria-hidden="true"></span><span>{{ e.claim }}</span></div>
+  <blockquote>“{{ e.quote }}”</blockquote>
+  <div class="evidence-meta">
+    <span class="chip {{ 'verified' if e.tier == 1 else 'reported' if e.tier == 2 else '' }}">{{ e.trust_label }}</span>
+    <span>{{ e.publisher }}{% if e.published_at %} · {{ e.published_at.strftime('%d %b %Y') }}{% endif %}</span>
+    <a href="{{ e.url }}" rel="noopener noreferrer" target="_blank">{{ icon("external", "ic-sm") }}Source</a>
+    {% if e.document_id %}<a href="/documents/{{ e.document_id }}">{{ icon("file", "ic-sm") }}Saved copy</a>{% endif %}
+  </div>
+</div>

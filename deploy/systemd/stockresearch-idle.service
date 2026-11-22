@@ -1,0 +1,9 @@
+[Unit]
+Description=Stock research: switch the server off when idle
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/stockresearch
+ExecStart=/opt/stockresearch/deploy/idle-shutdown.sh
+TimeoutStartSec=15min

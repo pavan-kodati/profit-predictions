@@ -1,0 +1,64 @@
+{# Shared pieces for the emails. Inline styles only (email programs ignore style sheets); the dark-mode classes
+   (.tx .mu .good .bad .warn .soft .bd) are defined in email_base.html. #}
+
+{% macro color(tone) -%}{{ {'good': '#047857', 'bad': '#b91c1c', 'warn': '#b45309', 'mu': '#6b7280'}.get(tone, '#111827') }}{%- endmacro %}
+
+{% macro pct(x, digits=1) -%}{{ '%+.*f'|format(digits, x * 100) }}%{%- endmacro %}
+
+{# One summary number in a soft box. Four of them make a row; on a phone they become two by two. #}
+{% macro tile(label, value, sub='', tone='') -%}
+<td class="tile" valign="top" width="25%" style="padding:0 4px 8px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="soft bd" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;">
+    <tr><td style="padding:14px 14px 13px;">
+      <div class="mu" style="font-size:12px;line-height:1.3;color:#6b7280;">{{ label }}</div>
+      <div class="{{ tone or 'tx' }}" style="font-size:21px;line-height:1.3;font-weight:600;margin-top:5px;color:{{ color(tone) }};">{{ value }}</div>
+      <div class="mu" style="font-size:12px;line-height:1.3;color:#6b7280;margin-top:3px;">{{ sub }}</div>
+    </td></tr>
+  </table>
+</td>
+{%- endmacro %}
+
+{# A small heading above a table or list. #}
+{% macro heading(text, note='') -%}
+<div class="tx" style="font-size:16px;font-weight:600;line-height:1.4;margin:30px 0 4px;color:#111827;">{{ text }}</div>
+{% if note %}<div class="mu" style="font-size:13px;line-height:1.5;color:#6b7280;margin:0 0 10px;">{{ note }}</div>{% else %}<div style="height:6px;line-height:6px;">&nbsp;</div>{% endif %}
+{%- endmacro %}
+
+{# The positions table: what the app paid, the price now (or the sale price), and the gain. Expects TradeView rows. #}
+{% macro positions(rows, now_label='Price now') -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="bd" style="border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+  <tr class="soft" style="background:#f9fafb;">
+    <td class="mu c c1" style="padding:10px 8px 10px 14px;font-size:12px;color:#6b7280;">Stock</td>
+    <td class="mu c hide-sm" align="right" style="padding:10px 8px;font-size:12px;color:#6b7280;">Bought at</td>
+    <td class="mu c" align="right" style="padding:10px 8px;font-size:12px;color:#6b7280;">{{ now_label }}</td>
+    <td class="mu c c4" align="right" style="padding:10px 14px 10px 8px;font-size:12px;color:#6b7280;">Gain</td>
+  </tr>
+  {% for v in rows %}{% set t = v.t %}{% set up = (v.net or 0) >= 0 %}{% set moved = v.price_change %}
+  <tr>
+    <td class="bd c c1" valign="top" style="padding:14px 8px 14px 14px;border-top:1px solid #e5e7eb;">
+      <div class="tx" style="font-size:14px;font-weight:600;line-height:1.35;color:#111827;">{{ v.name }}</div>
+      <div class="mu" style="font-size:12px;line-height:1.45;color:#6b7280;margin-top:3px;">
+        {% if t.status == 'closed' %}Sold {{ t.exit_date.strftime('%d %b') }}{% else %}Holding{% if v.days_left is not none %} &middot; {{ v.days_left }} day{{ 's' if v.days_left != 1 }} left{% endif %}{% endif %}</div>
+      <div class="mu show-sm" style="display:none;font-size:12px;line-height:1.45;color:#6b7280;">Bought at {{ t.entry_price|inr2 }} &middot; {{ t.quantity }} share{{ 's' if t.quantity != 1 }}</div>
+    </td>
+    <td class="bd c hide-sm" valign="top" align="right" style="padding:14px 8px;border-top:1px solid #e5e7eb;">
+      <div class="tx" style="font-size:14px;line-height:1.35;color:#111827;white-space:nowrap;">{{ t.entry_price|inr2 }}</div>
+      <div class="mu" style="font-size:12px;line-height:1.45;color:#6b7280;margin-top:3px;">{{ t.quantity }} share{{ 's' if t.quantity != 1 }}</div>
+    </td>
+    <td class="bd c" valign="top" align="right" style="padding:14px 8px;border-top:1px solid #e5e7eb;">
+      <div class="tx" style="font-size:14px;line-height:1.35;color:#111827;white-space:nowrap;">{{ v.price_now|inr2 if v.price_now is not none else '...' }}</div>
+      <div class="{{ 'good' if (moved or 0) >= 0 else 'bad' }}" style="font-size:12px;line-height:1.45;margin-top:3px;color:{{ color('good' if (moved or 0) >= 0 else 'bad') }};">{{ pct(moved) if moved is not none else '' }}</div>
+    </td>
+    <td class="bd c c4" valign="top" align="right" style="padding:14px 14px 14px 8px;border-top:1px solid #e5e7eb;">
+      <div class="{{ 'good' if up else 'bad' }}" style="font-size:14px;font-weight:600;line-height:1.35;color:{{ color('good' if up else 'bad') }};white-space:nowrap;">{{ (v.net or 0)|inr(signed=true) }}</div>
+      <div class="mu" style="font-size:12px;line-height:1.45;color:#6b7280;margin-top:3px;">{{ pct(v.net_pct or 0) }}<span class="hide-sm"> after costs</span></div>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{%- endmacro %}
+
+{% macro button(url, label) -%}
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr><td class="btn" style="background:#111827;border-radius:8px;">
+  <a href="{{ url }}" class="btn" style="display:inline-block;padding:11px 20px;font-size:14px;font-weight:500;color:#ffffff;text-decoration:none;">{{ label }}</a></td></tr></table>
+{%- endmacro %}

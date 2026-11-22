@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}System · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>System</h1>
+    <p>Every scheduled job, its stages and timings. A failed job also sends an email or Telegram alert.</p>
+  </div>
+</div>
+
+{% set last = runs|first %}
+<section class="metrics" aria-label="System summary">
+  <div class="metric"><div class="metric-label">{{ icon("activity", "ic-sm") }}Last job</div><div class="metric-value">{{ last.job|replace('_', ' ')|capitalize if last else '—' }}</div><div class="metric-sub">{{ last.started_at.strftime('%d %b, %H:%M') if last else 'no runs yet' }}</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("alert", "ic-sm") }}Failures</div><div class="metric-value {{ 'bad' if runs|selectattr('status', 'equalto', 'failed')|list else 'good' }}">{{ runs|selectattr('status', 'equalto', 'failed')|list|length }}</div><div class="metric-sub">in the last {{ runs|length }} runs</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("layers", "ic-sm") }}Research queue</div><div class="metric-value">{{ queue|selectattr('status', 'equalto', 'pending')|list|length }}</div><div class="metric-sub">waiting</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("cpu", "ic-sm") }}AI calls today</div><div class="metric-value">{{ ai_today if ai else '—' }}</div><div class="metric-sub">{{ 'of ' ~ ai_budget ~ ' daily budget' if ai else 'AI not configured' }}</div></div>
+</section>
+
+{% if queue %}
+<h2>Research queue</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stock</th><th>Reason</th><th class="num">Priority</th><th>Status</th><th>Requested</th></tr></thead>
+  <tbody>{% for q in queue %}<tr>
+    <td class="stock-cell"><a href="/stocks/{{ q.symbol }}">{{ q.symbol }}</a>{% if q.on_demand %}<span class="sym">on demand</span>{% endif %}</td>
+    <td class="small muted">{{ q.reason }}{% if q.error %}<br><span class="bad">{{ q.error[:120] }}</span>{% endif %}</td>
+    <td class="num">{{ q.priority }}</td><td><span class="chip {{ q.status if q.status != 'pending' else '' }}">{{ q.status|capitalize }}</span></td>
+    <td class="small muted">{{ q.requested_at.strftime('%d %b %H:%M') }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+<h2>Recent runs</h2>
+{% for r in runs %}
+<details class="run">
+  <summary>
+    <span class="status-dot {{ r.status }}" aria-hidden="true"></span>
+    <span class="run-job">{{ r.job|replace('_', ' ') }}</span>
+    <span class="chip {{ r.status }}">{{ r.status }}</span>
+    <span class="small faint">{{ r.started_at.strftime('%d %b %H:%M') }}{% if r.finished_at %} · {{ ((r.finished_at - r.started_at).total_seconds())|round|int }}s{% endif %}</span>
+    <span class="small muted">{{ (r.notes or '').split('\n')[0][:110] }}</span>
+  </summary>
+  <div class="run-body">
+    <table>
+      <thead><tr><th>Stage</th><th>Status</th><th class="num">Seconds</th><th>Detail</th></tr></thead>
+      <tbody>{% for st in r.stages %}<tr><td>{{ st.name }}</td><td><span class="chip {{ st.status }}">{{ st.status }}</span></td>
+        <td class="num">{{ ((st.finished_at - st.started_at).total_seconds())|round(1) if st.finished_at else '' }}</td>
+        <td class="small muted">{{ st.detail }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if r.status == 'failed' %}<pre class="doc">{{ r.notes }}</pre>{% endif %}
+  </div>
+</details>
+{% else %}
+<div class="card empty">{{ icon("activity") }}<h3>No runs yet</h3><p>Jobs appear here once the schedule starts.</p></div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stockresearch-web",
+      "runtimeExecutable": ".venv/Scripts/uvicorn.exe",
+      "runtimeArgs": ["stockresearch.web.app:app_factory", "--factory", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "stockresearch-demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-c", "import os, uvicorn; os.environ.update(APP_USER='demo', APP_PASSWORD='demo-only-password-123', SESSION_SECRET='demo-session-secret-0123456789-abcdefghijkl', COOKIE_SECURE='false'); os.environ['DATABASE_URL'] = 'sqlite:///C:/Users/FL_LPT~1/AppData/Local/Temp/claude/ee62a494c8462799/cbfd5048-8bad-4c6d-b038-34eaa94afa4d/scratchpad/demo3.db'; uvicorn.run('stockresearch.web.app:app_factory', factory=True, port=8001)"],
+      "port": 8001
+    }
+  ]
+}

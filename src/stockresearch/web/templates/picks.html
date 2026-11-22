@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, tone %}
+{% block title %}Today · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "Picks for " ~ run.started_at.strftime('%a %d %b') if run else "Today's picks" }}</h1>
+    {% if run %}
+    <p>Published {{ run.started_at.strftime('%d %b, %H:%M') }} IST{% if picks %} · prices as of {{ picks[0].data.tech.as_of }} close{% elif others %} · prices as of {{ others[0].data.tech.as_of }} close{% endif %}{% if queue %} · {{ queue }} in the research queue{% endif %}</p>
+    {% endif %}
+  </div>
+  {% if days|length > 1 %}
+  <form method="get" action="/" class="inline">
+    <label class="sr-only" for="day">Earlier lists</label>
+    <select id="day" name="day" class="btn-sm">
+      {% for d in days %}<option value="{{ d }}" {{ 'selected' if run and run.started_at.date()|string == d|string }}>{{ d }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">Show</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if welcome %}
+<section class="card welcome" aria-label="Welcome">
+  <form class="dismiss" method="post" action="/welcome/dismiss"><button class="btn btn-ghost btn-sm" type="submit" aria-label="Hide welcome">{{ icon("x", "ic-sm") }}Got it</button></form>
+  <h2>Welcome. Here's how to use this in one minute</h2>
+  <p class="muted">You don't need any stock market knowledge. Words with a small (i) explain themselves when you tap them.</p>
+  <div class="welcome-steps">
+    <div class="welcome-step"><span class="n">1</span><b>Read the morning picks</b><p>Each one says why it might go up, what could go wrong, and how much you'd risk.</p></div>
+    <div class="welcome-step"><span class="n">2</span><b>Check the sources</b><p>Every reason links to the company's official announcement or a trusted newspaper.</p></div>
+    <div class="welcome-step"><span class="n">3</span><b>Practise before real money</b><p>The <a href="/track-record">App's track record</a> shows, in rupees, how every earlier pick did. Try your own pretend trades in <a href="/practice">My practice portfolio</a>.</p></div>
+  </div>
+</section>
+{% endif %}
+
+{% if not ai %}<div class="notice warn">{{ icon("info", "ic-sm") }}<span>AI reading is off. Ratings use filings, prices, financials and ownership only.</span></div>{% endif %}
+
+<section class="metrics" aria-label="Summary">
+  <div class="metric"><div class="metric-label">{{ icon("check", "ic-sm") }}New picks</div><div class="metric-value">{{ picks|length }}</div><div class="metric-sub">rated {{ min_rating }} or higher{% if running or waiting %}, plus {{ running|length + waiting|length }} still running{% endif %}</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("filter", "ic-sm") }}Shortlisted</div><div class="metric-value">{{ metrics.shortlisted }}</div><div class="metric-sub">of {{ metrics.universe }} stocks scanned</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("file", "ic-sm") }}Researched</div><div class="metric-value">{{ metrics.researched }}</div><div class="metric-sub">with filings and news read</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("target", "ic-sm") }}App's track record</div>
+    {% if record.invested %}<div class="metric-value {{ 'good' if record.profit >= 0 else 'bad' }}">{{ record.profit|signed_rupees }}</div><div class="metric-sub">on {{ record.invested|rupees }} of pretend money, <a href="/track-record">see why</a></div>
+    {% else %}<div class="metric-value">—</div><div class="metric-sub">first pretend trades after the next market open</div>{% endif %}</div>
+</section>
+
+{% if not run %}
+<div class="card empty">
+  {{ icon("sun") }}
+  <h3>No list published yet</h3>
+  <p>The morning list appears at 08:00 IST on trading days, after the evening screen and research have run.</p>
+</div>
+{% else %}
+  {% if picks %}
+    {% for g in groups %}
+    <div class="group-head"><h2>{{ GROUP_LABEL[g.key] }}</h2><span>{{ GROUP_HINT[g.key] }}</span></div>
+    {% if g.picks %}
+    <div class="grid">{% for r in g.picks %}{% include "_card.html" %}{% endfor %}</div>
+    {% else %}
+    <p class="group-none">No {{ GROUP_ONE[g.key]|lower }} cleared the bar today.</p>
+    {% endif %}
+    {% endfor %}
+  {% else %}
+  <div class="card empty">
+    {{ icon("shield") }}
+    <h3>No new picks today</h3>
+    <p>A pick needs a rating of {{ min_rating }} or more, a confirmed reason, and every safety check. Waiting is a valid answer.</p>
+  </div>
+  {% endif %}
+
+  {% if running or waiting %}
+  <div class="group-head"><h2>Still running from earlier days</h2><span>picked before, so not repeated as new picks</span></div>
+  <div class="card">
+    {% for w in waiting %}
+    <div class="story">
+      <span class="s-ic">{{ icon("clock", "ic-sm") }}</span>
+      <p><a href="/reports/{{ w.pick.report_id }}">{{ w.name }}</a>, picked {{ w.pick.pick_date.strftime('%a %d %b') }} at about {{ w.pick.ref_close|money }}. Its pretend trade starts at the next market open.</p>
+      <span class="amt faint">—<small>{{ GROUP_ONE[w.group] }}</small></span>
+    </div>
+    {% endfor %}
+    {% for v in running %}
+    <div class="story">
+      <span class="s-ic open">{{ icon("clock", "ic-sm") }}</span>
+      <p><a href="/stocks/{{ v.t.symbol }}">{{ v.name }}</a>, picked {{ v.t.pick_date.strftime('%a %d %b') }} and bought at {{ v.t.entry_price|money }}{% if v.last_close is not none %}, now {{ v.last_close|money }}{% endif %}.
+        {{ v.days_left }} market day{{ 's' if v.days_left != 1 }} left; sell level {{ v.t.stop_price|money }}.</p>
+      <span class="amt {{ 'good' if (v.open_net or 0) >= 0 else 'bad' }}">{{ v.net_pct|pct if v.net_pct is not none else '…' }}<small>{{ GROUP_ONE[v.group] }}</small></span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if alerts %}
+  <h2>Recent alerts</h2>
+  <div class="card">
+    {% for a in alerts %}
+    <div class="callout"><span class="chip {{ a.severity }}">{{ a.severity }}</span><span class="small faint">{{ a.created_at.strftime('%d %b %H:%M') }}</span><span>{{ a.message }}</span></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if others %}
+  <h2>Also researched</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Company</th><th>Size</th><th class="num">Rating</th><th>Label</th><th class="num">Price, 5 days</th><th>Why it's not a pick</th></tr></thead>
+      <tbody>
+      {% for r in others %}
+      <tr>
+        <td class="stock-cell"><a href="/reports/{{ r.id }}">{{ r.data.name }}</a><span class="sym">{{ r.symbol }}</span></td>
+        <td class="small muted">{{ GROUP_LABEL[r|group].split(' ')[0] }}</td>
+        <td class="num"><span class="score-pill {{ tone(r.rating) }}">{{ '%.1f'|format(r.rating) }}</span></td>
+        <td><span class="chip {{ r.pick_type }}">{{ r.pick_type|label }}</span></td>
+        <td class="num {{ 'good' if (r.data.tech.ret_5d or 0) >= 0 else 'bad' }}">{{ r.data.tech.ret_5d|pct }}</td>
+        <td class="small muted wrap">{{ r.data.held_back if r.data.held_back else (r.excluded_reason or (r.data.caps|first))|plain if (r.excluded_reason or r.data.caps) else 'The case is not strong enough yet (rated below ' ~ min_rating ~ ').' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

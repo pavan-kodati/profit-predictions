@@ -1,0 +1,11 @@
+# One service template for every scheduled job. %i is the CLI command, e.g. stockresearch-job@publish.service
+[Unit]
+Description=Stock research job: %i
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/stockresearch
+ExecStart=/usr/bin/docker compose exec -T app stockresearch %i
+TimeoutStartSec=3h

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, ring %}
+{% block title %}{{ h.symbol }} holding · Stock Research{% endblock %}
+{% block content %}
+<a class="crumb" href="/holdings">{{ icon("back", "ic-sm") }}All holdings</a>
+{% set rv = reviews|first %}
+<section class="card">
+  <div class="hero">
+    {% if rv %}{{ ring(rv.data.rating, "lg") }}{% else %}<div class="ring lg"><span>–</span></div>{% endif %}
+    <div>
+      <h1>{{ name }} <span class="sym">{{ h.symbol }}</span></h1>
+      <p class="muted small">{{ h.quantity|int }} shares at {{ h.avg_price|money }}{% if h.buy_date %} · bought {{ h.buy_date.strftime('%d %b %Y') }}{% endif %} · {{ 'short' if h.horizon == 'short' else 'long' }}-term{% if h.stop_price %} · stop {{ h.stop_price|money }}{% endif %}</p>
+      <div class="chips">
+        {% if rv %}<span class="chip {{ rv.status }}">{{ rv.status|capitalize }}</span><span class="chip">Reviewed {{ rv.review_date.strftime('%d %b') }}</span>{% endif %}
+        <a class="chip accent" href="/stocks/{{ h.symbol }}">All reports</a>
+      </div>
+    </div>
+    {% if rv %}
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="v">{{ rv.data.close|money }}</div><div class="l">Last close</div></div>
+      <div class="hero-stat"><div class="v {{ 'good' if (rv.data.gain or 0) >= 0 else 'bad' }}">{{ rv.data.gain|pct }}</div><div class="l">Since you bought</div></div>
+    </div>
+    {% endif %}
+  </div>
+  {% if rv %}
+  <div class="callouts">{% for x in rv.data.reasons %}<div class="callout {{ 'bad' if rv.status == 'broken' else 'warn' if rv.status == 'weakening' else '' }}">{{ icon("info", "ic-sm") }}<span>{{ x }}</span></div>{% endfor %}</div>
+  {% if rv.report_id %}<p class="small"><a href="/reports/{{ rv.report_id }}">Open the full report</a></p>{% endif %}
+  {% endif %}
+</section>
+
+{% if not rv %}
+<div class="notice">{{ icon("info", "ic-sm") }}<span>Not reviewed yet. Reviews come from the morning run after this holding has been researched.</span></div>
+{% else %}
+<div class="grid-2">
+  {% if rv.data.averaging %}
+  <div>
+    <h2>Averaging check</h2>
+    <div class="card">
+      {% for line in rv.data.averaging.lines %}<p>{{ line }}</p>{% endfor %}
+      <p class="source-note">This describes the evidence. Whether to buy more is your decision.</p>
+    </div>
+  </div>
+  {% endif %}
+  {% if rv.data.tax %}
+  <div>
+    <h2>Tax timing</h2>
+    <div class="card"><div class="callout {{ 'warn' if rv.data.tax.flag }}">{{ icon("calc", "ic-sm") }}<span>{{ rv.data.tax.line }}</span></div></div>
+  </div>
+  {% endif %}
+</div>
+
+<h2>What changed since you bought</h2>
+<div class="card">
+  {% for c in rv.data.changes %}
+  <div class="evidence">
+    <div class="evidence-claim"><span class="dot" aria-hidden="true"></span><span>{{ c.title }}</span></div>
+    <div class="evidence-meta"><span>{{ c.publisher }}{% if c.date %} · {{ c.date }}{% endif %}</span>
+      <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">{{ icon("external", "ic-sm") }}Source</a>
+      <a href="/documents/{{ c.document_id }}">{{ icon("file", "ic-sm") }}Saved copy</a></div>
+  </div>
+  {% else %}<p class="muted">No new filings, deals or shareholding changes found.</p>{% endfor %}
+</div>
+{% endif %}
+
+{% if alerts %}
+<h2>Alerts</h2>
+<div class="card">{% for a in alerts %}<div class="callout"><span class="chip {{ a.severity }}">{{ a.severity }}</span><span><span class="small faint">{{ a.created_at.strftime('%d %b %H:%M') }}</span> {{ a.message }}</span></div>{% endfor %}</div>
+{% endif %}
+
+{% if reviews|length > 1 %}
+<h2>Earlier reviews</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Date</th><th>Status</th><th class="num">Rating</th></tr></thead>
+  <tbody>{% for x in reviews[1:] %}<tr><td>{{ x.review_date }}</td><td><span class="chip {{ x.status }}">{{ x.status|capitalize }}</span></td><td class="num">{{ '%.1f'|format(x.data.rating) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, term, tone, tabs %}
+{% block title %}App's track record · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>App's track record</h1>
+    <p>The app is held to account for every pick it makes. Each pick is bought with {{ amount|rupees }} of pretend money at real prices,
+      with real costs and tax, and you can see what happened and why.</p>
+  </div>
+</div>
+
+{{ tabs([("picks", "Picks it made", "/track-record"), ("rejected", "Stocks it said no to", "/track-record?tab=rejected")], tab) }}
+
+{% if tab == "picks" %}
+  {% if not p.trades and not waiting %}
+  <div class="card empty">
+    {{ icon("target") }}
+    <h3>No picks yet</h3>
+    <p>Every pick appears here the morning it is published, and is bought with pretend money at the next market opening price.</p>
+  </div>
+  {% else %}
+  {% set mine = false %}
+  {% include "_book.html" %}
+
+  <div class="grid-2">
+    <div>
+      <div class="section-head">
+        <h2>Every pick, in plain words</h2>
+        <nav class="tabs tabs-sm" aria-label="Company size">
+          <a href="/track-record" class="{{ 'active' if group == 'all' }}">All</a>
+          {% for g in GROUPS %}<a href="/track-record?group={{ g }}" class="{{ 'active' if group == g }}">{{ GROUP_LABEL[g].split(' ')[0] }}</a>{% endfor %}
+        </nav>
+      </div>
+      <div class="card">
+        {% set wait_rows = waiting if group == 'all' else waiting|selectattr('group', 'equalto', group)|list %}
+        {% set rows = p.trades if group == 'all' else p.trades|selectattr('group', 'equalto', group)|list %}
+        {% if wait_rows %}
+        <p class="group-title">{{ icon("clock", "ic-sm") }}Waiting to buy ({{ wait_rows|length }})</p>
+        {% for w in wait_rows %}
+        <div class="story">
+          <span class="s-ic">{{ icon("clock", "ic-sm") }}</span>
+          <p><a href="/reports/{{ w.pick.report_id }}">{{ w.name }}</a> was picked on {{ w.pick.pick_date.strftime('%a %d %b') }} at about {{ w.pick.ref_close|money }}.
+            It is bought at the next market opening price and shows up here after that evening's update.</p>
+          <span class="amt faint">—<small>{{ GROUP_ONE[w.group] }}</small></span>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% include "_trades.html" %}
+        {% if not rows and not wait_rows %}<p class="muted">No picks in this size group yet.</p>{% endif %}
+      </div>
+    </div>
+    <div>
+      <h2>Do higher ratings do better?</h2>
+      <div class="card rating-bars">
+        {% if p.closed < 20 %}
+        <p class="conclusion">Too soon to say: {{ p.closed }} finished trade{{ 's' if p.closed != 1 }} so far, and at least 20 are needed. If the app works, higher ratings should make money more often.</p>
+        {% elif p.by_rating|length > 1 %}
+        {% set top, bottom = p.by_rating|first, p.by_rating|last %}
+        <p class="conclusion">{% if top.wins / top.count > bottom.wins / bottom.count %}Yes, so far: higher-rated picks made money more often.{% else %}Not so far: higher ratings haven't made money more often. Treat the ratings with caution.{% endif %}</p>
+        {% endif %}
+        {% for g in p.by_rating %}
+        <div class="row">
+          <span>{{ g.label }}</span>
+          <div class="bar r-{{ 'good' if g.wins * 2 >= g.count else 'bad' }}" data-rating="{{ 1 + 4 * g.wins / g.count }}"><span></span></div>
+          <span class="small"><b>{{ g.wins }} of {{ g.count }}</b> made money · <span class="{{ 'good' if g.net >= 0 else 'bad' }}">{{ g.net|signed_rupees }}</span></span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <h2>The rules, fixed in advance</h2>
+      <div class="card">
+        <ol class="rule-list">
+          <li>Every pick gets {{ amount|rupees }} of pretend money, bought as whole shares at the first market opening price after it was published. If one share costs more than that, one share is bought.</li>
+          <li>Each trade is sold if the price falls to its {{ term("stop", "safety level") }}, or when its {{ term("window", "holding window") }} ends: 5 {{ term("marketday", "market days") }} for "mostly excitement", 10 for "some real news", 15 for "backed by business results".</li>
+          <li>Every trade pays real {{ term("charges", "charges") }}, and profits pay {{ term("tax", "short-term gains tax") }}.</li>
+          <li>A pick is not bought if it opens at or below its safety level.</li>
+          <li>A share is a new pick once. It isn't picked again while its trade is running, and afterwards only if something new has been confirmed.</li>
+          <li>Trades are never changed afterwards. If the rules change, earlier trades keep the rules they were made under.{% if p.trades|selectattr('t.rules_version', 'equalto', 1)|list %} Trades made under the first rules shared ₹40,000 a day between that day's picks.{% endif %}</li>
+        </ol>
+        <p class="source-note">"Why it moved" is chosen by fixed rules from what moved with the price: company news, the whole market, or the sector.
+          That is strong evidence of the cause, not proof. The Nifty 50 and fixed-deposit comparisons put the same money in on the same days; the fixed deposit assumes 7% a year.</p>
+      </div>
+    </div>
+  </div>
+
+  <details class="card details-card">
+    <summary>Detailed statistics, for checking</summary>
+    {% set all = stats.get('All picks') %}
+    {% if all %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Group</th><th class="num">Measured</th><th class="num">Went up</th><th class="num">Average, 10 days</th><th class="num">After costs</th></tr></thead>
+        <tbody>
+        {% for name, g in stats|dictsort %}
+        <tr><td>{{ name|label }}</td><td class="num">{{ g.count }}</td><td class="num">{{ g.hit_rate|pct(false) }}</td>
+          <td class="num {{ 'good' if (g.avg_gross or 0) > 0 else 'bad' }}">{{ g.avg_gross|pct }}</td>
+          <td class="num {{ 'good' if (g.avg_net or 0) > 0 else 'bad' }}">{{ g.avg_net|pct }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted small">No pick has 10 market days of history yet.</p>
+    {% endif %}
+    {% if picks %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Stock</th><th class="num">Rating</th><th>Label</th><th class="num">Entry</th><th class="num">5 days</th><th class="num">10 days</th><th class="num">15 days</th><th class="num">Best</th><th class="num">Worst</th></tr></thead>
+        <tbody>
+        {% for pk in picks %}{% set o = pk.outcome %}
+        <tr>
+          <td class="muted">{{ pk.pick_date.strftime('%d %b') }}</td>
+          <td class="stock-cell"><a href="/reports/{{ pk.report_id }}">{{ names.get(pk.symbol, pk.symbol) }}</a><span class="sym">{{ pk.symbol }}{% if o and o.stale %} · stale{% endif %}</span></td>
+          <td class="num"><span class="score-pill {{ tone(pk.rating) }}">{{ '%.1f'|format(pk.rating) }}</span></td>
+          <td><span class="chip {{ pk.pick_type }}">{{ pk.pick_type|label }}</span></td>
+          <td class="num">{{ o.entry_price|money if o and o.entry_price else 'Pending' }}</td>
+          {% for v in [o.ret_5 if o else none, o.ret_10 if o else none, o.ret_15 if o else none, o.max_gain if o else none, o.max_drawdown if o else none] %}
+          <td class="num {{ 'good' if (v or 0) > 0 else 'bad' if (v or 0) < 0 else 'faint' }}">{{ v|pct }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="source-note">Measured from the first opening price after each pick, before costs unless stated. "After costs" assumes a {{ investment|rupees }} position.</p>
+    {% endif %}
+  </details>
+  {% endif %}
+
+{% else %}
+  <section class="card">
+    {% if rej.judged %}
+    <p class="big-answer">Of {{ rej.judged }} stock{{ 's' if rej.judged != 1 }} the app said no to,
+      <span class="good">{{ rej.right }} {{ 'was' if rej.right == 1 else 'were' }} right to skip</span>{% if rej.missed %},
+      <span class="bad">{{ rej.missed }} missed a gain</span>{% endif %}{% if rej.little %}, and {{ rej.little }} made little difference{% endif %}.</p>
+    <p class="answer-sub">Each one was followed for 10 market days and compared with simply holding the Nifty 50.{% if rej.following %} {{ rej.following }} more {{ 'is' if rej.following == 1 else 'are' }} still being followed.{% endif %}</p>
+    {% elif rej.rows %}
+    <p class="big-answer">{{ rej.rows|length }} stock{{ 's' if rej.rows|length != 1 }} the app said no to {{ 'is' if rej.rows|length == 1 else 'are' }} being followed.</p>
+    <p class="answer-sub">Each is followed for 10 market days, then judged against simply holding the Nifty 50. None has reached 10 days yet, so the results below are "so far".</p>
+    {% else %}
+    <p class="big-answer">No rejected stocks yet.</p>
+    <p class="answer-sub">Every stock the app researches but does not pick is followed for 10 market days, to check whether saying no was right.</p>
+    {% endif %}
+  </section>
+
+  {% if rej.rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Stock</th><th>Said no on</th><th>Why it was not picked</th><th class="num">Since then</th><th class="num">Nifty 50</th><th>Was skipping it right?</th></tr></thead>
+      <tbody>
+      {% for v in rej.rows %}{% set r = v.r %}
+      <tr>
+        <td class="stock-cell"><a href="/reports/{{ r.report_id }}">{{ v.name }}</a><span class="sym">{{ r.symbol }} · rated {{ '%.1f'|format(r.rating) }}</span></td>
+        <td class="muted">{{ r.reject_date.strftime('%d %b') }}</td>
+        <td class="small muted wrap">{{ r.reason }}</td>
+        <td class="num {{ 'good' if (r.ret or 0) > 0 else 'bad' if (r.ret or 0) < 0 else 'faint' }}">{{ r.ret|pct if r.ret is not none else '…' }}</td>
+        <td class="num muted">{{ r.index_ret|pct if r.index_ret is not none else '…' }}</td>
+        <td>{% if r.verdict %}<span class="chip {{ 'ok' if r.verdict == 'right' else 'failed' if r.verdict == 'missed' else '' }}">{{ v.verdict_title }}</span>
+          {% if not r.final %}<span class="sym-note">so far, day {{ r.days_tracked }} of 10</span>{% endif %}
+          {% else %}<span class="faint">From the next market day</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="source-note">"Right to skip": it fell, or did much worse than the Nifty 50. "Missed a gain": it rose and beat the Nifty 50 by more than 3%.
+    No pretend money is used here, only the price change from the day the app said no.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

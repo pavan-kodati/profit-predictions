@@ -1,0 +1,10 @@
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:620px;color:#1f2328;line-height:1.45">
+  <h2 style="margin:0 0 10px">Alerts on your holdings</h2>
+  <ul style="margin:0 0 0 18px;padding:0">
+    {% for a in alerts %}
+    <li style="margin:0 0 8px"><b style="color:{{ '#d1242f' if a.severity == 'exit' else '#9a6700' if a.severity == 'warn' else '#0969da' }}">{{ a.severity|upper }}</b> {{ a.message }}</li>
+    {% endfor %}
+  </ul>
+  <p><a href="{{ app_url }}/holdings">Open your holdings</a></p>
+  <p style="color:#818b98;font-size:12px">These alerts describe what happened. The decision to hold or sell is yours. {{ disclaimer }}</p>
+</div>

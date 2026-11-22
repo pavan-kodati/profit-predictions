@@ -1,0 +1,56 @@
+{# One book of pretend trades: the answer in rupees, the comparison, the chart and four summary numbers.
+   Expects `p` (practice.Summary), `chart`, and `mine` (true on My practice portfolio, false on App's track record). #}
+{% from "_ui.html" import icon, term %}
+<section class="card">
+  {% if p.invested %}
+  <p class="big-answer">{% if mine %}Your {{ p.bought }} practice trade{{ 's' if p.bought != 1 }}:{% else %}{{ p.bought }} pick{{ 's' if p.bought != 1 }} bought so far.{% endif %}
+    {{ p.invested|rupees }} of pretend money is now worth {{ (p.invested + p.profit)|rupees }}:
+    <span class="{{ 'good' if p.profit >= 0 else 'bad' }}">{{ 'up' if p.profit >= 0 else 'down' }} {{ p.profit|abs|rupees }}</span>
+    after all costs and tax.</p>
+  <p class="answer-sub">That's {{ p.profit_pct|pct }} since {{ p.first_day.strftime('%d %b') }}. {{ p.in_profit }} of {{ p.bought }} {{ 'is' if p.bought == 1 else 'are' }} in profit.
+    {% if not mine %}Every pick gets {{ amount|rupees }} of pretend money.{% endif %}</p>
+  {% else %}
+  <p class="big-answer">Nothing has been bought yet.{% if p.skipped %} {{ p.skipped }} {{ 'was' if p.skipped == 1 else 'were' }} skipped; the reasons are below.{% endif %}</p>
+  {% endif %}
+
+  {% if p.verdict and p.invested %}
+  <div class="verdict {{ p.verdict.key }}">{{ icon("clock" if p.verdict.key == 'early' else 'trend' if p.verdict.key == 'ahead' else 'alert', "ic-sm") }}{{ p.verdict.title }}</div>
+  {% set vs_index = p.profit - p.index_profit %}{% set vs_fd = p.profit - p.fd_profit %}
+  <p class="compare-line">
+    That's <b class="{{ 'good' if vs_index >= 0 else 'bad' }}">{{ vs_index|abs|rupees }} {{ 'more' if vs_index >= 0 else 'less' }}</b> than putting the same money into the {{ term("nifty") }},
+    and {{ vs_fd|abs|rupees }} {{ 'more' if vs_fd >= 0 else 'less' }} than a {{ term("fd", "fixed deposit") }}.
+    {% if p.verdict.key == 'early' %}But with only {{ p.closed }} finished trade{{ 's' if p.closed != 1 }}, luck alone can explain results like this.
+    Wait for at least 20 before using real money.{% endif %}
+  </p>
+  {% endif %}
+
+  {% if chart %}
+  <h3 class="chart-title">Profit or loss over time</h3>
+  <svg class="chart" viewBox="0 0 680 210" role="img"
+       aria-label="{{ 'Your trades' if mine else 'The app\'s picks' }} {{ chart.last.mine|signed_rupees }}, Nifty 50 {{ chart.last.index|signed_rupees }}, fixed deposit {{ chart.last.fd|signed_rupees }}">
+    {% for l in chart.y_labels %}
+    <line class="{{ 'zero' if l.text == '₹0' else 'grid' }}" x1="{{ chart.left }}" y1="{{ l.y }}" x2="{{ chart.right }}" y2="{{ l.y }}"/>
+    <text class="axis-text" x="{{ chart.left - 8 }}" y="{{ l.y + 4 }}" text-anchor="end">{{ l.text }}</text>
+    {% endfor %}
+    <polyline class="fd" points="{{ chart.lines.fd }}"/>
+    <polyline class="index" points="{{ chart.lines.index }}"/>
+    <polyline class="mine" points="{{ chart.lines.mine }}"/>
+    {% for l in chart.x_labels %}<text class="axis-text" x="{{ l.x }}" y="{{ chart.bottom + 20 }}" text-anchor="{{ l.anchor }}">{{ l.text }}</text>{% endfor %}
+  </svg>
+  <div class="legend">
+    <span><span class="sw mine"></span>{{ 'Your trades' if mine else "The app's picks" }}: <b class="{{ 'good' if chart.last.mine >= 0 else 'bad' }}">{{ chart.last.mine|signed_rupees }}</b></span>
+    <span><span class="sw index"></span>Same money in the Nifty 50: <b>{{ chart.last.index|signed_rupees }}</b></span>
+    <span><span class="sw fd"></span>Same money in a fixed deposit: <b>{{ chart.last.fd|signed_rupees }}</b></span>
+  </div>
+  <p class="source-note">Above the ₹0 line is profit, below it is loss. Lines higher up did better.</p>
+  {% elif p.invested %}
+  <p class="source-note">The chart appears after the second market day.</p>
+  {% endif %}
+</section>
+
+<section class="metrics" aria-label="Summary">
+  <div class="metric"><div class="metric-label">{{ icon("check", "ic-sm") }}Trades finished</div><div class="metric-value">{{ p.closed }}</div><div class="metric-sub">{{ p.open }} still being held</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("trend", "ic-sm") }}Made money</div><div class="metric-value">{{ p.winners }}{% if p.closed %}<span class="faint"> of {{ p.closed }}</span>{% endif %}</div><div class="metric-sub">{{ 'finished trades in profit' if p.closed else 'none finished yet' }}</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("wallet", "ic-sm") }}Biggest win</div><div class="metric-value good">{{ p.best.t.net_pnl|signed_rupees if p.best and p.best.t.net_pnl > 0 else '—' }}</div><div class="metric-sub">{{ p.best.name if p.best and p.best.t.net_pnl > 0 else 'after costs and tax' }}</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("alert", "ic-sm") }}Biggest loss</div><div class="metric-value bad">{{ p.worst.t.net_pnl|signed_rupees if p.worst and p.worst.t.net_pnl < 0 else '—' }}</div><div class="metric-sub">{{ p.worst.name if p.worst and p.worst.t.net_pnl < 0 else 'no losing trade yet' }}</div></div>
+</section>

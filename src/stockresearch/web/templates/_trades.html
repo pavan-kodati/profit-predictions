@@ -1,0 +1,58 @@
+{# Every trade in plain words, with the result and the reason it moved.
+   Expects `rows` (list of practice.TradeView) and `mine` (true adds the Sell now / Cancel buttons). #}
+{% from "_ui.html" import icon, term, why %}
+{% set pending_trades = rows|selectattr('t.status', 'equalto', 'pending')|list %}
+{% set open_trades = rows|selectattr('t.status', 'equalto', 'open')|list %}
+{% set closed_trades = rows|selectattr('t.status', 'equalto', 'closed')|list %}
+{% set skipped_trades = rows|selectattr('t.status', 'equalto', 'skipped')|list %}
+
+{% if pending_trades %}
+<p class="group-title">{{ icon("clock", "ic-sm") }}Waiting to buy ({{ pending_trades|length }})</p>
+{% for v in pending_trades %}{% set t = v.t %}
+<div class="story">
+  <span class="s-ic">{{ icon("clock", "ic-sm") }}</span>
+  <p><a href="/stocks/{{ t.symbol }}">{{ v.name }}</a>: {{ t.amount|rupees }} will be used at the next market opening price (9:15 am). It appears here after that evening's update.</p>
+  <form class="amt" method="post" action="/practice/{{ t.id }}/sell"><button class="btn btn-sm" type="submit">Cancel</button></form>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if open_trades %}
+<p class="group-title">{{ icon("clock", "ic-sm") }}Still holding ({{ open_trades|length }})</p>
+{% for v in open_trades %}{% set t = v.t %}
+<div class="story">
+  <span class="s-ic open">{{ icon("clock", "ic-sm") }}</span>
+  <p>Bought {{ t.quantity }} share{{ 's' if t.quantity != 1 }} of <a href="/stocks/{{ t.symbol }}">{{ v.name }}</a> for {{ t.buy_value|rupees }} on {{ t.entry_date.strftime('%d %b') }}.
+    {% if v.last_close is not none %}Worth {{ (t.quantity * v.last_close)|rupees }} now.{% endif %}
+    {% if mine and t.sell_requested_at %}You asked to sell: it will be sold at the next market opening price.
+    {% else %}Will be sold within {{ v.days_left }} more {{ term("marketday", "market day" ~ ('s' if v.days_left != 1 else '')) }}, or sooner if the price drops to {{ t.stop_price|money }}.{% endif %}
+    {{ why(v) }}</p>
+  <span class="amt {{ 'good' if (v.open_net or 0) >= 0 else 'bad' }}">{{ v.open_net|signed_rupees if v.open_net is not none else '…' }}<small>{{ v.net_pct|pct if v.net_pct is not none else '' }} if sold today</small>
+    {% if mine and not t.sell_requested_at %}<form method="post" action="/practice/{{ t.id }}/sell" data-confirm="Sell {{ v.name }} at the next market opening price?"><button class="btn btn-sm" type="submit">Sell now</button></form>{% endif %}</span>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if closed_trades %}
+<p class="group-title">{{ icon("check", "ic-sm") }}Finished ({{ closed_trades|length }})</p>
+{% for v in closed_trades %}{% set t = v.t %}
+<div class="story">
+  <span class="s-ic {{ 'win' if t.net_pnl > 0 else 'loss' }}">{{ icon("check" if t.net_pnl > 0 else "x", "ic-sm") }}</span>
+  <p>Bought {{ t.quantity }} share{{ 's' if t.quantity != 1 }} of <a href="/stocks/{{ t.symbol }}">{{ v.name }}</a> for {{ t.buy_value|rupees }} on {{ t.entry_date.strftime('%d %b') }}.
+    Sold {{ 'the same day' if t.exit_date == t.entry_date else 'on ' ~ t.exit_date.strftime('%d %b') }} for {{ (t.quantity * t.exit_price)|rupees }}, {{ EXIT_WORDS.get(t.exit_reason, '') }}.
+    {{ why(v) }}</p>
+  <span class="amt {{ 'good' if t.net_pnl > 0 else 'bad' }}">{{ t.net_pnl|signed_rupees }}<small>{{ (t.net_pnl / t.buy_value)|pct }} after costs</small></span>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if skipped_trades %}
+<p class="group-title">{{ icon("x", "ic-sm") }}Not bought ({{ skipped_trades|length }})</p>
+{% for v in skipped_trades %}{% set t = v.t %}
+<div class="story">
+  <span class="s-ic skip">{{ icon("x", "ic-sm") }}</span>
+  <p><a href="/stocks/{{ t.symbol }}">{{ v.name }}</a> ({{ t.pick_date.strftime('%d %b') }}) wasn't bought: {{ t.skip_reason }}.</p>
+  <span class="amt faint">—</span>
+</div>
+{% endfor %}
+{% endif %}

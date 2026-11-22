@@ -1,0 +1,9 @@
+[Unit]
+Description=Stock research: check every 10 minutes whether the server can switch off
+
+[Timer]
+OnBootSec=25min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

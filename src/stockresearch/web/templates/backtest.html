@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}Back-test · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Back-test of the price screen</h1>
+    <p>Replays the price and volume rules on past data: the top picks each period, bought at the next open and held 10 trading days, compared with buying every liquid stock.</p>
+  </div>
+</div>
+
+{% if not row %}
+<div class="card empty">{{ icon("history") }}<h3>No back-test yet</h3><p>Run <code>stockresearch backtest --years 3</code> on the server.</p></div>
+{% elif row.data.error %}
+<div class="notice error">{{ icon("alert", "ic-sm") }}<span>{{ row.data.error }}</span></div>
+{% else %}{% set b = row.data %}
+<section class="metrics" aria-label="Back-test summary">
+  <div class="metric"><div class="metric-label">{{ icon("activity", "ic-sm") }}Trades</div><div class="metric-value">{{ b.trades }}</div><div class="metric-sub">{{ b.from }} to {{ b.to }}</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("trend", "ic-sm") }}Screen picks, avg</div><div class="metric-value {{ 'good' if b.picks.avg > 0 else 'bad' }}">{{ b.picks.avg|pct }}</div><div class="metric-sub">10 days, before costs</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("layers", "ic-sm") }}All liquid stocks</div><div class="metric-value">{{ b.baseline.avg|pct }}</div><div class="metric-sub">the baseline</div></div>
+  <div class="metric"><div class="metric-label">{{ icon("target", "ic-sm") }}Edge per trade</div><div class="metric-value {{ 'good' if b.excess_avg > 0 else 'bad' }}">{{ b.excess_avg|pct }}</div><div class="metric-sub">picks minus baseline</div></div>
+</section>
+
+<div class="notice {{ 'good' if b.excess_avg > 0.005 else 'warn' }}">{{ icon("info", "ic-sm") }}<span>
+  {% if b.excess_avg > 0.005 %}The price rules alone beat the market in this period. Verified triggers should add to that; paper trading will tell.
+  {% else %}The price rules alone add little or nothing. Any edge has to come from the verified news and filings triggers, which only paper trading can measure.{% endif %}
+</span></div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h3>Screen picks</h3></div>
+    <dl class="kv">
+      <dt>Average, 10 days</dt><dd class="{{ 'good' if b.picks.avg > 0 else 'bad' }}">{{ b.picks.avg|pct }}</dd>
+      <dt>After costs and tax</dt><dd class="{{ 'good' if b.picks.avg_net > 0 else 'bad' }}">{{ b.picks.avg_net|pct }}</dd>
+      <dt>Median</dt><dd>{{ b.picks.median|pct }}</dd>
+      <dt>Went up</dt><dd>{{ b.picks.hit_rate|pct(false) }}</dd>
+      <dt>Reached +10%</dt><dd>{{ b.picks.share_10pct|pct(false) }}</dd>
+      <dt>Best / worst</dt><dd>{{ b.picks.best|pct }} / {{ b.picks.worst|pct }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Baseline: every liquid stock</h3></div>
+    <dl class="kv">
+      <dt>Average, 10 days</dt><dd>{{ b.baseline.avg|pct }}</dd>
+      <dt>Median</dt><dd>{{ b.baseline.median|pct }}</dd>
+      <dt>Went up</dt><dd>{{ b.baseline.hit_rate|pct(false) }}</dd>
+      <dt>Periods tested</dt><dd>{{ b.periods }}</dd>
+      <dt>Picks per period</dt><dd>{{ b.top_n }}</dd>
+      <dt>Run</dt><dd>{{ row.created_at.strftime('%d %b %Y') }}</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>Recent periods</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Start</th><th>Picks</th><th class="num">Picks avg</th><th class="num">Baseline</th></tr></thead>
+  <tbody>{% for p in b.recent_periods|reverse %}<tr><td class="muted">{{ p.date }}</td><td class="small">{{ p.picks|join(', ') }}</td>
+    <td class="num {{ 'good' if p.avg > 0 else 'bad' }}">{{ p.avg|pct }}</td><td class="num">{{ p.baseline|pct }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}

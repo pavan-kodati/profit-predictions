@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email layout options</title>
+<style>
+  :root { --bg:#fff; --fg:#0a0a0a; --muted:#f5f5f5; --mfg:#737373; --border:#e5e5e5; --good:#047857; --bad:#dc2626; --warn:#b45309; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 64px; background:#fafafa; color:var(--fg); font:15px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:640px; margin:0 auto; }
+  .note { color:var(--mfg); font-size:14px; margin:0 0 8px; }
+  h1 { font-size:22px; margin:0 0 4px; letter-spacing:-.01em; }
+  .opt { margin:40px 0 12px; padding-top:24px; border-top:2px solid var(--fg); }
+  .opt h2 { font-size:18px; margin:0 0 2px; } .opt p { margin:0; color:var(--mfg); font-size:14px; }
+  .mail { background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:28px 24px; }
+  .mail h3 { font-size:20px; margin:0 0 4px; letter-spacing:-.01em; }
+  .sub { color:var(--mfg); font-size:14px; margin:0 0 20px; }
+  .group { font-size:15px; font-weight:600; margin:24px 0 10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .group span { font-weight:400; color:var(--mfg); font-size:13px; }
+  .card { border:1px solid var(--border); border-radius:10px; padding:18px; margin:0 0 12px; }
+  .head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .name { font-size:16px; font-weight:600; line-height:1.3; } .name small { display:block; font-weight:400; color:var(--mfg); font-size:13px; }
+  .score { flex:none; text-align:right; font-size:13px; color:var(--mfg); }
+  .score b { display:block; font-size:22px; line-height:1; color:var(--good); font-variant-numeric:tabular-nums; }
+  .score b.mid { color:var(--warn); }
+  .tag { display:inline-block; font-size:12px; font-weight:500; padding:2px 8px; border-radius:6px; border:1px solid var(--border); margin:10px 6px 0 0; }
+  .tag.good { color:var(--good); border-color:#a7f3d0; background:#ecfdf5; } .tag.mid { color:var(--warn); border-color:#fde68a; background:#fffbeb; }
+  .why { margin:14px 0 0; } .why p { margin:0 0 8px; font-size:14px; } .why b { font-weight:600; }
+  table { border-collapse:collapse; width:100%; }
+  .plan { margin:14px 0 0; background:var(--muted); border-radius:8px; }
+  .plan caption { text-align:left; font-size:13px; font-weight:600; padding:0 0 6px; }
+  .plan td { padding:10px 12px; font-size:12px; color:var(--mfg); vertical-align:top; width:25%; border-right:1px solid var(--bg); }
+  .plan td:last-child { border-right:0; }
+  .plan td b { display:block; font-size:16px; color:var(--fg); font-variant-numeric:tabular-nums; font-weight:600; }
+  .plan td b.bad { color:var(--bad); }
+  .plan-foot { font-size:13px; color:var(--mfg); margin:8px 0 0; }
+  .src { margin:14px 0 0; font-size:13px; } .src b { font-weight:600; } .src ul { margin:4px 0 0; padding-left:18px; } .src li { margin:2px 0; }
+  .src a, .link { color:var(--fg); text-decoration:underline; text-underline-offset:2px; } .src span { color:var(--mfg); }
+  .btn { display:inline-block; margin-top:14px; background:var(--fg); color:#fff; text-decoration:none; font-size:14px; font-weight:500; padding:8px 14px; border-radius:8px; }
+  .glance th { text-align:left; font-size:12px; font-weight:500; color:var(--mfg); padding:8px 10px; background:var(--muted); }
+  .glance td { padding:10px; font-size:14px; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; vertical-align:top; }
+  .glance td small { display:block; color:var(--mfg); font-size:12px; }
+  .glance .sec td { background:var(--bg); font-weight:600; font-size:13px; padding-top:16px; border-bottom:1px solid var(--fg); }
+  .glance, .res { border:1px solid var(--border); border-radius:10px; overflow:hidden; border-collapse:separate; border-spacing:0; }
+  .num { text-align:right; white-space:nowrap; } .up { color:var(--good); font-weight:600; } .down { color:var(--bad); font-weight:600; }
+  .still { background:var(--muted); border-radius:10px; padding:14px 16px; margin:20px 0 0; font-size:14px; } .still b { font-weight:600; }
+  .big { font-size:17px; line-height:1.5; margin:0 0 16px; font-weight:500; }
+  .res th { text-align:left; font-size:12px; font-weight:500; color:var(--mfg); padding:8px 10px; background:var(--muted); }
+  .res td { padding:12px 10px; font-size:14px; border-top:1px solid var(--border); vertical-align:top; font-variant-numeric:tabular-nums; }
+  .res td small { display:block; color:var(--mfg); font-size:12.5px; margin-top:2px; }
+  .foot { color:var(--mfg); font-size:12px; margin:20px 0 0; }
+  @media (max-width:520px) { .plan td { display:inline-block; width:50%; border-right:0; } .mail { padding:20px 16px; } .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Email layout options</h1>
+  <p class="note">Sample numbers for layout only, except Mahindra &amp; Mahindra, which is from today's email. Every pick assumes ₹10,000 of pretend money.</p>
+
+  <!-- ============ OPTION A ============ -->
+  <div class="opt"><h2>Option A: cards only</h2><p>One card per pick, grouped by company size. The trade plan is a row of four numbers.</p></div>
+  <div class="mail">
+    <h3>Your stock research for Fri 13 Nov</h3>
+    <p class="sub">3 new picks today. Each has a checked reason to rise in the next few weeks.</p>
+
+    <div class="group">Large companies <span>the 100 biggest in India; steadier prices</span></div>
+    <div class="card">
+      <div class="head">
+        <div class="name">Mahindra &amp; Mahindra Ltd.<small>M&amp;M, last price ₹3,399.00</small></div>
+        <div class="score"><b>4.5</b>out of 5</div>
+      </div>
+      <span class="tag good">Strong case</span><span class="tag">Backed by business results</span>
+      <div class="why">
+        <p><b>Why it might go up:</b> October production rose 30.4% on a year ago and it leads the tractor market. Strong vehicle sales after its latest results could keep the price rising.</p>
+        <p><b>What could go wrong:</b> Sales of some models, such as the Bolero Diesel, are falling.</p>
+      </div>
+      <table class="plan" role="presentation"><tr>
+        <td>Buy<b>2 shares</b>at about ₹3,399</td>
+        <td>You pay<b>₹6,798</b>of your ₹10,000</td>
+        <td>Sell if it falls to<b>₹3,228</b>5% below today</td>
+        <td>Most you'd lose<b class="bad">₹342</b>if sold at that level</td>
+      </tr></table>
+      <p class="plan-foot">Otherwise hold, and review it by Fri 4 Dec.</p>
+      <div class="src"><b>Check it yourself</b>
+        <ul>
+          <li><a href="#">Q2 results submitted</a> <span>5 Nov, official NSE filing</span></li>
+          <li><a href="#">October production up 30.4%</a> <span>1 Nov, official NSE filing</span></li>
+          <li><a href="#">Acquisition announced</a> <span>6 Nov, official NSE filing</span></li>
+        </ul>
+      </div>
+      <a class="btn" href="#">Read the full report</a>
+    </div>
+
+    <div class="group">Mid-size companies <span>ranked 101 to 250; faster growth, bigger swings</span></div>
+    <div class="card">
+      <div class="head">
+        <div class="name">Asahi India Glass Ltd.<small>ASAHIINDIA, last price ₹880.00</small></div>
+        <div class="score"><b>4.0</b>out of 5</div>
+      </div>
+      <span class="tag good">Strong case</span><span class="tag">Backed by business results</span>
+      <div class="why">
+        <p><b>Why it might go up:</b> Profit is up 28% on a year ago and a mutual fund bought a large block of shares this week.</p>
+        <p><b>What could go wrong:</b> The price already rose 9% this week, so you may be buying late.</p>
+      </div>
+      <table class="plan" role="presentation"><tr>
+        <td>Buy<b>11 shares</b>at about ₹880</td>
+        <td>You pay<b>₹9,680</b>of your ₹10,000</td>
+        <td>Sell if it falls to<b>₹836</b>5% below today</td>
+        <td>Most you'd lose<b class="bad">₹484</b>if sold at that level</td>
+      </tr></table>
+      <p class="plan-foot">Otherwise hold, and review it by Fri 4 Dec.</p>
+      <a class="btn" href="#">Read the full report</a>
+    </div>
+
+    <div class="group">Small companies <span>ranked 251 and below; riskiest</span></div>
+    <div class="card">
+      <div class="head">
+        <div class="name">Indo Count Industries Ltd.<small>ICIL, last price ₹310.00</small></div>
+        <div class="score"><b class="mid">3.5</b>out of 5</div>
+      </div>
+      <span class="tag mid">Good case</span><span class="tag">Some real news, some excitement</span>
+      <div class="why">
+        <p><b>Why it might go up:</b> It won a new export order, confirmed in an exchange filing.</p>
+        <p><b>What could go wrong:</b> Few shares trade each day, so it could be hard to sell quickly.</p>
+      </div>
+      <table class="plan" role="presentation"><tr>
+        <td>Buy<b>32 shares</b>at about ₹310</td>
+        <td>You pay<b>₹9,920</b>of your ₹10,000</td>
+        <td>Sell if it falls to<b>₹292</b>6% below today</td>
+        <td>Most you'd lose<b class="bad">₹576</b>if sold at that level</td>
+      </tr></table>
+      <p class="plan-foot">Otherwise hold, and review it by Fri 27 Nov.</p>
+      <a class="btn" href="#">Read the full report</a>
+    </div>
+    <p class="foot">Research, not advice. Prices can fall as well as rise.</p>
+  </div>
+
+  <!-- ============ OPTION B ============ -->
+  <div class="opt"><h2>Option B: summary table first, then cards</h2><p>The whole day fits in one table at the top. Details for each pick follow below, in the same cards as option A.</p></div>
+  <div class="mail">
+    <h3>Your stock research for Fri 13 Nov</h3>
+    <p class="sub">3 new picks today, and 2 earlier picks still running.</p>
+
+    <table class="glance">
+      <tr><th>New picks, with ₹10,000 each</th><th class="num">Rating</th><th class="num hide-sm">Buy</th><th class="num">Sell if below</th><th class="num">Most you'd lose</th></tr>
+      <tr class="sec"><td colspan="5">Large companies</td></tr>
+      <tr><td>Mahindra &amp; Mahindra<small>₹3,399 a share</small></td><td class="num up">4.5</td><td class="num hide-sm">2 shares<small>₹6,798</small></td><td class="num">₹3,228</td><td class="num down">₹342</td></tr>
+      <tr class="sec"><td colspan="5">Mid-size companies</td></tr>
+      <tr><td>Asahi India Glass<small>₹880 a share</small></td><td class="num up">4.0</td><td class="num hide-sm">11 shares<small>₹9,680</small></td><td class="num">₹836</td><td class="num down">₹484</td></tr>
+      <tr class="sec"><td colspan="5">Small companies</td></tr>
+      <tr><td>Indo Count Industries<small>₹310 a share</small></td><td class="num" style="color:var(--warn);font-weight:600">3.5</td><td class="num hide-sm">32 shares<small>₹9,920</small></td><td class="num">₹292</td><td class="num down">₹576</td></tr>
+    </table>
+
+    <div class="still"><b>Still running from earlier days</b> (not repeated as new picks)<br>
+      Divi's Laboratories, picked Thu 12 Nov: <span class="up">up 1.8%</span> so far. Review by 3 Dec.<br>
+      Kalyan Jewellers, picked Mon 9 Nov: <span class="down">down 0.9%</span> so far. Review by 23 Nov.
+    </div>
+
+    <div class="group">Details for each new pick</div>
+    <div class="card">
+      <div class="head">
+        <div class="name">Mahindra &amp; Mahindra Ltd.<small>Large company, last price ₹3,399.00</small></div>
+        <div class="score"><b>4.5</b>out of 5</div>
+      </div>
+      <span class="tag good">Strong case</span><span class="tag">Backed by business results</span>
+      <div class="why">
+        <p><b>Why it might go up:</b> October production rose 30.4% on a year ago and it leads the tractor market.</p>
+        <p><b>What could go wrong:</b> Sales of some models, such as the Bolero Diesel, are falling.</p>
+      </div>
+      <div class="src"><b>Check it yourself</b>
+        <ul>
+          <li><a href="#">Q2 results submitted</a> <span>5 Nov, official NSE filing</span></li>
+          <li><a href="#">October production up 30.4%</a> <span>1 Nov, official NSE filing</span></li>
+        </ul>
+      </div>
+      <a class="btn" href="#">Read the full report</a>
+    </div>
+    <p class="note" style="margin:8px 0 0">(The other two picks follow in the same card.)</p>
+    <p class="foot">Research, not advice. Prices can fall as well as rise.</p>
+  </div>
+
+  <!-- ============ RESULTS EMAIL ============ -->
+  <div class="opt"><h2>Separate email: how the app's picks did</h2><p>The app's own track record: what it picked, what happened, and why.</p></div>
+  <div class="mail">
+    <h3>How the app's picks did, week ending Fri 20 Nov</h3>
+    <p class="sub">Pretend money, real prices. ₹10,000 goes into every pick.</p>
+    <p class="big">8 picks so far. ₹80,000 of pretend money is now worth ₹81,640: <span class="up">up ₹1,640</span> after costs and tax. 5 picks made money, 3 lost.</p>
+
+    <table class="res">
+      <tr><th>Pick</th><th class="num">Result</th><th>Why it moved</th></tr>
+      <tr><td>Mahindra &amp; Mahindra<small>Picked 13 Nov at ₹3,399. Still holding, now ₹3,521.</small></td>
+          <td class="num up">+₹244<small>+3.6%</small></td>
+          <td>The business<small>November bookings rose, confirmed in an NSE filing on 18 Nov.</small></td></tr>
+      <tr><td>Kalyan Jewellers<small>Picked 9 Nov at ₹655. Sold 23 Nov at ₹641, when its holding time ended.</small></td>
+          <td class="num down">-₹231<small>-2.3%</small></td>
+          <td>The whole market<small>The Nifty fell 2.1% over the same days. Most shares fell with it.</small></td></tr>
+      <tr><td>Indo Count Industries<small>Picked 13 Nov at ₹310. Sold 17 Nov at ₹292, at its safety level.</small></td>
+          <td class="num down">-₹612<small>-6.2%</small></td>
+          <td>No clear reason found<small>The market and its sector were flat. No filing or news explains the fall.</small></td></tr>
+    </table>
+
+    <div class="group">Stocks the app said no to</div>
+    <table class="res">
+      <tr><th>Stock</th><th class="num">Since then</th><th>Was skipping it right?</th></tr>
+      <tr><td>Sai Life Sciences<small>Skipped 12 Nov: no official reason for its jump.</small></td><td class="num down">-7.4%</td><td>Right to skip</td></tr>
+      <tr><td>UNO Minda<small>Skipped 12 Nov: already up 22% in a week.</small></td><td class="num up">+4.1%</td><td>Missed a gain</td></tr>
+    </table>
+    <a class="btn" href="#">See the full track record</a>
+    <p class="foot">Research, not advice. Past results don't guarantee future ones.</p>
+  </div>
+</div>
+</body>
+</html>

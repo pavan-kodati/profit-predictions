@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, tone %}
+{% block title %}{{ symbol }} · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ stock.name if stock else symbol }} <span class="faint">{{ symbol }}</span></h1>
+    <p>{{ stock.industry if stock and stock.industry else 'NSE listed' }}</p>
+  </div>
+  {% if stock %}
+  <form method="post" action="/research" class="inline">
+    <input type="hidden" name="symbol" value="{{ symbol }}">
+    <button class="btn btn-primary" type="submit" {{ 'disabled' if pending }}>{{ icon("search", "ic-sm") }}{{ 'Research queued' if pending else 'Research now' }}</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if error == 'unknown' %}<div class="notice error">{{ icon("alert", "ic-sm") }}<span>"{{ symbol }}" isn't a known NSE symbol or ISIN. Check the spelling, for example TATAPOWER.</span></div>{% endif %}
+{% if error == 'limit' %}<div class="notice error">{{ icon("alert", "ic-sm") }}<span>Today's {{ limit }} on-demand reports are used up. The limit protects the free AI allowance and resets at midnight.</span></div>{% endif %}
+{% if queued or pending %}<div class="notice">{{ icon("info", "ic-sm") }}<span>Research requested{% if pending %} ({{ pending.status }}){% endif %}. It runs within 15 minutes; refresh this page to see the report.</span></div>{% endif %}
+{% if stock %}<p class="small faint">{{ used }} of {{ limit }} on-demand reports used today.</p>{% endif %}
+
+<h2>Reports</h2>
+{% if reports %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Date</th><th>Type</th><th class="num">Rating</th><th>Label</th><th></th></tr></thead>
+    <tbody>
+    {% for r in reports %}
+    <tr>
+      <td><a href="/reports/{{ r.id }}">{{ r.created_at.strftime('%d %b %Y, %H:%M') }}</a></td>
+      <td class="muted">{{ r.purpose|replace('_', ' ')|capitalize }}</td>
+      <td class="num"><span class="score-pill {{ tone(r.rating) }}">{{ '%.1f'|format(r.rating) }}</span></td>
+      <td><span class="chip {{ r.pick_type }}">{{ r.pick_type|label }}</span></td>
+      <td>{% if r.is_pick %}<span class="chip accent">Pick</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty">{{ icon("file") }}<h3>No reports yet</h3><p>Use Research now to get a full report on {{ symbol }}.</p></div>
+{% endif %}
+{% endblock %}

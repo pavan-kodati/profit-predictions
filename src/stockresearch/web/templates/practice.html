@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, term %}
+{% block title %}My practice portfolio · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>My practice portfolio</h1>
+    <p>Pretend trades you choose yourself, with real prices, real costs and tax. No real money is involved, and nothing here changes the app's own track record.</p>
+  </div>
+  <a class="btn btn-primary btn-sm" href="/">{{ icon("plus", "ic-sm") }}Find a share to practise on</a>
+</div>
+
+{% if msg %}<div class="notice good" role="status">{{ icon("check", "ic-sm") }}<span>{{ msg }}</span></div>{% endif %}
+{% if err %}<div class="notice error" role="alert">{{ icon("alert", "ic-sm") }}<span>{{ err }}</span></div>{% endif %}
+
+{% if not p.trades %}
+<div class="card empty">
+  {{ icon("wallet") }}
+  <h3>You haven't practised on any share yet</h3>
+  <p>Open <a href="/">today's picks</a> or any stock report and press "Practise buying this". The share is bought with pretend money at the next market opening price, and its result shows up here.</p>
+</div>
+{% else %}
+  {% set mine = true %}
+  {% include "_book.html" %}
+
+  <div class="grid-2">
+    <div>
+      <h2>Your trades, in plain words</h2>
+      <div class="card">
+        {% set rows = p.trades %}
+        {% include "_trades.html" %}
+      </div>
+    </div>
+    <div>
+      <h2>How practice trades work</h2>
+      <div class="card">
+        <ol class="rule-list">
+          <li>You choose the share and the amount. It is bought as whole shares at the next market opening price (9:15 am on a market day).</li>
+          <li>It is sold automatically if the price falls to its {{ term("stop", "safety level") }}, or when its {{ term("window", "holding window") }} ends. You can also press "Sell now", which sells at the next market opening price.</li>
+          <li>Every trade pays real {{ term("charges", "charges") }}, and profits pay {{ term("tax", "short-term gains tax") }}, so the result is what you would really keep.</li>
+          <li>Prices update once a day, around 7 pm, after the market closes.</li>
+        </ol>
+        <p class="source-note">To see how the app's own picks are doing, open the <a href="/track-record">App's track record</a>.</p>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

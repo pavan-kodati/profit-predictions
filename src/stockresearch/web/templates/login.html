@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}Sign in · Stock Research{% endblock %}
+{% block auth %}
+{# Layout follows shadcn/ui block "login-02": form on the left, muted panel on the right. #}
+<div class="auth-shell">
+  <section class="auth-form-wrap">
+    <a class="auth-logo" href="/login"><span class="brand-mark">{{ icon("logo") }}</span>Stock Research</a>
+    <div class="auth-center">
+      <form class="auth-form" method="post" action="/login" novalidate>
+        <div class="auth-title">
+          <h1>Sign in to your account</h1>
+          <p>Enter your username and password to see today's research.</p>
+        </div>
+        {% if not configured %}
+        <div class="notice error" role="alert">{{ icon("alert", "ic-sm") }}<span>Sign-in is turned off until APP_PASSWORD (12+ characters) and SESSION_SECRET (32+ characters) are set on the server.</span></div>
+        {% endif %}
+        {% if error %}<div class="notice error" role="alert">{{ icon("alert", "ic-sm") }}<span>{{ error }}</span></div>{% endif %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="auth-fields">
+          <div class="field">
+            <label for="u">Username</label>
+            <input id="u" type="text" name="username" placeholder="pavan" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+          </div>
+          <div class="field">
+            <label for="p">Password</label>
+            <div class="pw-wrap">
+              <input id="p" type="password" name="password" autocomplete="current-password" required>
+              <button class="pw-toggle" type="button" data-toggle-password="p" aria-label="Show password" aria-pressed="false">{{ icon("eye", "ic-sm") }}</button>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+        </div>
+        <p class="auth-secure">{{ icon("lock", "ic-sm") }}<span>Encrypted connection. Sign-in pauses after 5 wrong attempts.</span></p>
+      </form>
+    </div>
+  </section>
+
+  <aside class="auth-panel" aria-label="About Stock Research">
+    <div class="auth-preview">
+      <svg class="auth-chart" viewBox="0 0 460 120" preserveAspectRatio="none" aria-hidden="true">
+        <polygon class="area" points="0,120 0,92 40,88 80,95 120,78 160,82 200,64 240,70 280,48 320,54 360,36 400,40 460,16 460,120"/>
+        <polyline points="0,92 40,88 80,95 120,78 160,82 200,64 240,70 280,48 320,54 360,36 400,40 460,16"/>
+      </svg>
+    </div>
+    <blockquote>
+      <p>"Shares with a real, checkable reason to rise, rated 1 to 5, with every source one click away."</p>
+      <footer>Research for the Indian market, every morning at 8 am</footer>
+    </blockquote>
+    <ul class="auth-points">
+      <li><span class="ic-wrap">{{ icon("shield") }}</span><div><b>Official sources first</b><span>Every claim is backed by an NSE filing or two newspapers.</span></div></li>
+      <li><span class="ic-wrap">{{ icon("wallet") }}</span><div><b>Practise before real money</b><span>Pretend trades show, in rupees, whether the picks work.</span></div></li>
+      <li><span class="ic-wrap">{{ icon("bell") }}</span><div><b>Exit alerts</b><span>Warnings on what you hold when the story changes.</span></div></li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}

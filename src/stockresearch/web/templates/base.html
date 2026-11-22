@@ -1,0 +1,60 @@
+{% from "_ui.html" import icon %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}Stock Research{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v={{ ASSET_V }}">
+  <script src="/static/app.js?v={{ ASSET_V }}" defer></script>
+</head>
+{% if user %}
+<body class="app">
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">{{ icon("logo") }}</span><span class="brand-text">Stock Research</span></a>
+    {% set path = request.url.path %}
+    <p class="nav-label">Research</p>
+    <nav class="nav" aria-label="Main">
+      <a href="/" class="{{ 'active' if path == '/' or path.startswith('/reports') or path.startswith('/stocks') or path.startswith('/documents') }}">{{ icon("sun") }}<span>Today's picks</span></a>
+      <a href="/track-record" class="{{ 'active' if path == '/track-record' }}">{{ icon("target") }}<span>App's track record</span></a>
+      <a href="/practice" class="{{ 'active' if path == '/practice' }}">{{ icon("wallet") }}<span>My practice portfolio</span></a>
+      <a href="/holdings" class="{{ 'active' if path.startswith('/holdings') }}">{{ icon("briefcase") }}<span>My holdings</span></a>
+      <a href="/how-it-works" class="{{ 'active' if path == '/how-it-works' }}">{{ icon("book") }}<span>How it works</span></a>
+    </nav>
+    <p class="nav-label">For checking</p>
+    <nav class="nav" aria-label="Advanced">
+      <a href="/backtest" class="{{ 'active' if path == '/backtest' }}">{{ icon("history") }}<span>Back-test</span></a>
+      <a href="/runs" class="{{ 'active' if path == '/runs' }}">{{ icon("activity") }}<span>System</span></a>
+    </nav>
+    <div class="sidebar-foot">Research, not advice. Every claim links to its source.</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <form class="search" method="post" action="/research" role="search">
+        {{ icon("search", "ic-sm") }}
+        <label class="sr-only" for="q">Research a stock</label>
+        <input id="q" type="text" name="symbol" placeholder="Research a stock, e.g. TATAPOWER" autocomplete="off">
+      </form>
+      <div class="topbar-right">
+        <span class="user-chip"><span class="avatar">{{ user[:1] }}</span><span class="user-name">{{ user }}</span></span>
+        <form class="inline" method="post" action="/logout">
+          <button class="btn btn-ghost btn-sm" type="submit" aria-label="Sign out">{{ icon("logout", "ic-sm") }}<span class="user-name">Sign out</span></button>
+        </form>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+      <p class="footer-note">Automated research for personal use. Not investment advice and not a prediction: prices can fall
+        as well as rise. Check the linked sources yourself before investing.</p>
+    </main>
+  </div>
+</div>
+</body>
+{% else %}
+<body class="auth">
+{% block auth %}{% endblock %}
+</body>
+{% endif %}
+</html>

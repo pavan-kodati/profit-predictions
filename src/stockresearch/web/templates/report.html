@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% from "_ui.html" import plan_strip, icon, ring, tone, term %}
+{% block title %}{{ r.symbol }} · Stock Research{% endblock %}
+{% block content %}
+<a class="crumb" href="/stocks/{{ r.symbol }}">{{ icon("back", "ic-sm") }}All reports for {{ r.symbol }}</a>
+
+<section class="card">
+  <div class="hero">
+    {{ ring(r.rating, "lg") }}
+    <div>
+      <h1>{{ d.name }} <span class="sym">{{ r.symbol }}</span></h1>
+      <p class="muted small">{{ d.industry or 'NSE' }} · report of {{ r.created_at.strftime('%d %b %Y, %H:%M') }} IST · prices as of {{ d.tech.as_of }}{% if d.long_term %} · long-term view{% endif %}</p>
+      <div class="chips">
+        <span class="chip {{ r.pick_type }}">{{ plain_box.label }}</span>
+        {% if r.is_pick %}<span class="chip accent">{{ icon("check", "ic-sm") }}Today's pick</span>{% endif %}
+        {% if pick and pick.outcome and pick.outcome.stale %}<span class="chip warn">Price opened 3%+ higher: you may be late</span>{% endif %}
+        <span class="chip">{{ (r.completeness * 100)|round|int }}% of the information found</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="v">{{ d.tech.close|money }}</div><div class="l">Last price</div></div>
+      <div class="hero-stat"><div class="v {{ 'good' if (d.tech.ret_5d or 0) >= 0 else 'bad' }}">{{ d.tech.ret_5d|pct }}</div><div class="l">Past week</div></div>
+      <div class="hero-stat"><div class="v {{ 'good' if (d.tech.ret_20d or 0) >= 0 else 'bad' }}">{{ d.tech.ret_20d|pct }}</div><div class="l">Past month</div></div>
+    </div>
+  </div>
+  {% if r.excluded_reason %}<div class="callouts"><div class="callout bad">{{ icon("alert", "ic-sm") }}<span><b>Not a pick:</b> {{ r.excluded_reason|plain }}</span></div></div>{% endif %}
+</section>
+
+<h2>In plain words</h2>
+<section class="card">
+  <div class="plain-box">
+    <div class="plain-row"><span class="plain-ic {{ 'good' if plain_box.rating_tone == 'good' else 'warn' }}">{{ icon("target", "ic-sm") }}</span>
+      <div><h3>{{ plain_box.rating_title }} ({{ '%.1f'|format(r.rating) }} out of 5) · {{ plain_box.label }} · {{ GROUP_ONE[r|group] }}</h3>
+        <p>{{ plain_box.label_explain }}</p></div></div>
+    <div class="plain-row"><span class="plain-ic good">{{ icon("trend", "ic-sm") }}</span>
+      <div><h3>Why it might go up</h3><ul>{% for x in plain_box.why %}<li>{{ x }}</li>{% endfor %}</ul></div></div>
+    <div class="plain-row"><span class="plain-ic warn">{{ icon("alert", "ic-sm") }}</span>
+      <div><h3>What could go wrong</h3><ul>{% for x in plain_box.risks %}<li>{{ x }}</li>{% endfor %}</ul></div></div>
+  </div>
+  {% if d.levels and d.levels.stop %}
+  {{ plan_strip(plain_box.plan) }}
+  <form id="practise" class="practise" method="post" action="/practice">
+    <input type="hidden" name="report_id" value="{{ r.id }}">
+    {% if my_trade %}
+    <p class="small muted">{{ icon("check", "ic-sm") }} You already have a practice trade {{ 'waiting to buy' if my_trade.status == 'pending' else 'running' }} in this share. <a href="/practice">See my practice portfolio</a></p>
+    {% else %}
+    <label for="practise-amount">Try it with pretend money</label>
+    <div class="practise-row">
+      <input id="practise-amount" name="amount" type="number" inputmode="numeric" min="1000" max="1000000" step="500" value="{{ amount|int }}" required>
+      <button class="btn btn-primary" type="submit">{{ icon("wallet", "ic-sm") }}Practise buying this</button>
+    </div>
+    <p class="small muted">Bought at the next market opening price and followed in <a href="/practice">My practice portfolio</a>. No real money is used.</p>
+    {% endif %}
+  </form>
+  {% endif %}
+</section>
+
+<div class="grid-2">
+  <div>
+    <h2>Sources that support it</h2>
+    <div class="card">
+      {% for e in ev_for %}{% include "_evidence.html" %}{% else %}<p class="muted">No supporting information from trusted sources.</p>{% endfor %}
+    </div>
+  </div>
+  <div>
+    <h2>Sources against it</h2>
+    <div class="card">
+      {% for e in ev_against %}{% include "_evidence.html" %}{% else %}<p class="muted">No negative news found in trusted sources. That doesn't mean there's no risk.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+<p class="source-note">{{ term("filing", "Official filing") }} = the company's own announcement to the stock exchange (most trustworthy).
+  "Reported by" = two newspapers confirmed it. "Single source" = only one newspaper, so it counts half.</p>
+
+<h2>Plan a position</h2>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("calc") }}Try a different amount</h3></div>
+    <dl class="kv">
+      <dt>Last price</dt><dd>{{ d.tech.close|money }}</dd>
+      <dt>{{ term("stop", "Safety level") }}</dt><dd class="bad">{{ d.levels.stop|money }} ({{ d.levels.stop_pct|pct }})</dd>
+      <dt>If it rises 10%</dt><dd class="good">{{ d.levels.plus10|money }}</dd>
+      <dt>Usual daily up-and-down</dt><dd>{{ d.levels.daily_move_pct|pct(false) }}</dd>
+    </dl>
+    <div id="risk-calc" data-close="{{ d.tech.close }}" data-stop="{{ d.levels.stop }}">
+      <div class="field"><label for="amt">Amount you're thinking of (Rs)</label><input id="amt" type="number" name="amount" value="{{ investment|int }}" min="0" step="1000"></div>
+      <p class="calc-out" data-out></p>
+    </div>
+    <p class="source-note">These levels come from how much the price usually moves. They're a starting point, not advice.</p>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>{{ icon("bell") }}I bought this</h3></div>
+    <p class="small muted">Tell the app, and it will email you if the price falls to the safety level, the excitement fades, or bad news comes out.</p>
+    <form method="post" action="/holdings">
+      <input type="hidden" name="symbol" value="{{ r.symbol }}">
+      {% if pick %}<input type="hidden" name="pick_id" value="{{ pick.id }}">{% endif %}
+      <div class="form-row">
+        <div class="field"><label for="hq">How many shares</label><input id="hq" type="number" name="quantity" min="1" step="1" required></div>
+        <div class="field"><label for="hp">Price you paid</label><input id="hp" type="text" name="avg_price" value="{{ d.tech.close }}" required></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label for="hd">Date bought</label><input id="hd" type="date" name="buy_date"></div>
+        <div class="field"><label for="hs">Safety level</label><input id="hs" type="text" name="stop_price" value="{{ d.levels.stop }}"></div>
+        <div class="field"><label for="hh">Keeping it for</label><select id="hh" name="horizon"><option value="short">A few weeks</option><option value="long">A year or more</option></select></div>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon("plus", "ic-sm") }}Start watching</button>
+    </form>
+  </div>
+</div>
+
+<details class="more">
+  <summary>{{ icon("layers", "ic-sm") }}Show details <span class="hint">how the rating was worked out, business numbers, ownership, results</span></summary>
+
+  {% if d.thesis %}<div class="thesis"><b>AI summary.</b> {{ d.thesis }}</div>{% endif %}
+  <div class="callouts">
+    <div class="callout">{{ icon("history", "ic-sm") }}<span><b>Holding guidance:</b> {{ d.hold_guide }}</span></div>
+    {% for c in d.caps %}<div class="callout warn">{{ icon("info", "ic-sm") }}<span>{{ c }}</span></div>{% endfor %}
+    {% for f in d.gates.flags %}<div class="callout warn">{{ icon("alert", "ic-sm") }}<span>{{ f }}</span></div>{% endfor %}
+    {% if d.ai_dropped %}<div class="callout">{{ icon("shield", "ic-sm") }}<span class="muted">{{ d.ai_dropped }} AI claim(s) discarded because they didn't match a source word for word.</span></div>{% endif %}
+    {% if d.blocked_news %}<div class="callout">{{ icon("shield", "ic-sm") }}<span class="muted">{{ d.blocked_news }} item(s) from untrusted sources ignored.</span></div>{% endif %}
+  </div>
+
+  <h2>How the rating was worked out</h2>
+  <div class="grid-3">
+    {% for key, a in d.areas.items() %}
+    <div class="card area-card">
+      <div class="card-head"><h3>{{ a.label }}</h3><span class="weight">{{ (a.weight * 100)|int }}% of the rating</span></div>
+      {% if a.score is not none %}
+      <div class="area-score">{{ a.score|score }}<small> / 5</small></div>
+      <div class="bar {{ tone(a.score) }}" data-rating="{{ a.score }}"><span></span></div>
+      {% else %}
+      <div class="area-score faint">n/a</div>
+      <p class="small faint">Not found, so not counted.</p>
+      {% endif %}
+      <ul class="reasons">{% for x in a.reasons %}<li class="{{ 'plus' if x.startswith('+') else 'minus' if x.startswith('-') else '' }}">{{ x|plain }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2>The numbers</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><h3>{{ icon("trend") }}Price and trading</h3></div>
+      <dl class="kv">
+        <dt>Past 3 months</dt><dd>{{ d.tech.ret_60d|pct }}</dd>
+        <dt>Past year</dt><dd>{{ d.tech.ret_250d|pct }}</dd>
+        <dt>Below its {{ term("high52", "1-year high") }}</dt><dd>{{ d.tech.from_high|pct }}</dd>
+        <dt>{{ term("volume", "Trading") }} vs usual</dt><dd>{{ '%.1f'|format(d.tech.vol_ratio or 0) }}x</dd>
+        <dt>{{ term("delivery", "Delivery %") }}, week / usual</dt><dd>{{ d.tech.delivery_5d|score }} / {{ d.tech.delivery_50d|score }}</dd>
+        <dt>Traded per day</dt><dd>Rs {{ '%.1f'|format(d.tech.turnover_cr) }} cr</dd>
+      </dl>
+      <p class="source-note">Official NSE daily prices; Yahoo Finance for older history.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>{{ icon("layers") }}Business health</h3></div>
+      {% set f = d.fundamentals %}
+      <dl class="kv">
+        <dt>Company value</dt><dd>{% if f.market_cap_cr %}Rs {{ '{:,.0f}'.format(f.market_cap_cr) }} cr{% else %}n/a{% endif %}</dd>
+        <dt>{{ term("pe", "Price / yearly profit") }}</dt><dd>{{ f.pe|score }}</dd>
+        <dt>Sales growth</dt><dd>{{ f.revenue_growth|pct }}</dd>
+        <dt>Profit growth</dt><dd>{{ f.earnings_growth|pct }}</dd>
+        <dt>{{ term("margin", "Profit margin") }}</dt><dd>{{ f.profit_margin|pct(false) }}</dd>
+        <dt>{{ term("debt", "Debt / own money") }}</dt><dd>{{ f.debt_to_equity|score }}</dd>
+        <dt>{{ term("roe", "Return on equity") }}</dt><dd>{{ f.roe|pct(false) }}</dd>
+      </dl>
+      <p class="source-note">Yahoo Finance, from company filings.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>{{ icon("briefcase") }}Who owns it</h3></div>
+      {% set o = d.ownership %}
+      <dl class="kv">
+        <dt>{{ term("promoter", "Founders / owners") }}{% if o.as_of %} ({{ o.as_of }}){% endif %}</dt><dd>{{ o.promoter_pct|score }}%</dd>
+        <dt>Change, last quarter</dt><dd>{{ o.promoter_change_qoq|score }} pts</dd>
+        <dt>Change, last year</dt><dd>{{ o.promoter_change_yoy|score }} pts</dd>
+        <dt>{{ term("pledge", "Shares pledged") }}</dt><dd>{{ o.pledged_pct|score }}%</dd>
+        <dt>{{ term("institution", "Big investors") }}</dt><dd>{{ o.institutional_pct|score }}%</dd>
+        <dt>Owners' net buying, 90 days</dt><dd>{% if o.promoter_net_buy_cr_90d is not none %}Rs {{ '%.1f'|format(o.promoter_net_buy_cr_90d) }} cr{% else %}n/a{% endif %}</dd>
+        <dt>Big fund buys / sells, 30 days</dt><dd>{{ o.fund_bulk_buys_30d }} / {{ o.fund_bulk_sells_30d }}</dd>
+      </dl>
+      <p class="source-note">NSE shareholding, pledge, insider and deal disclosures.</p>
+    </div>
+  </div>
+
+  {% if d.fundamentals.quarters %}
+  <h2>Quarterly results</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quarter ending</th><th class="num">Sales (Rs cr)</th><th class="num">Profit (Rs cr)</th></tr></thead>
+      <tbody>{% for q in d.fundamentals.quarters %}<tr><td>{{ q.period_end }}</td><td class="num">{{ '{:,.1f}'.format(q.revenue_cr) if q.revenue_cr is not none else 'n/a' }}</td><td class="num">{{ '{:,.1f}'.format(q.profit_cr) if q.profit_cr is not none else 'n/a' }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if d.not_found or d.track_record or d.research_notes or d.risks %}
+  <h2>Notes</h2>
+  <div class="card">
+    {% if d.track_record %}<p><b>Track record.</b> {{ d.track_record }}</p>{% endif %}
+    {% if d.not_found %}<p class="small"><b>Not found</b></p><ul class="reasons">{% for x in d.not_found %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+    {% if d.research_notes %}<p class="small"><b>Research notes</b></p><ul class="reasons">{% for n in d.research_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endif %}
+</details>
+{% endblock %}

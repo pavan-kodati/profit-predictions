@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}Saved copy · Stock Research{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Saved copy</h1>
+    <p>The text the app read, stored when it was fetched, so you can see exactly what a rating was based on.</p>
+  </div>
+  <a class="btn" href="{{ doc.url }}" rel="noopener noreferrer" target="_blank">{{ icon("external", "ic-sm") }}Open original</a>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <dl class="kv">
+      <dt>Title</dt><dd>{{ doc.title }}</dd>
+      <dt>Publisher</dt><dd>{{ doc.publisher }}</dd>
+      <dt>Trust tier</dt><dd><span class="chip {{ 'verified' if doc.tier == 1 else 'reported' if doc.tier == 2 else '' }}">{{ doc.tier|tier }}</span></dd>
+    </dl>
+  </div>
+  <div class="card">
+    <dl class="kv">
+      <dt>Published</dt><dd>{{ doc.published_at.strftime('%d %b %Y %H:%M') if doc.published_at else 'unknown' }}</dd>
+      <dt>Fetched</dt><dd>{{ doc.fetched_at.strftime('%d %b %Y %H:%M') }} IST</dd>
+      <dt>Fingerprint</dt><dd class="faint">sha256 {{ doc.content_hash[:16] }}…</dd>
+    </dl>
+  </div>
+</div>
+<h2>Text</h2>
+<div class="card"><pre class="doc">{{ doc.text or doc.title }}</pre></div>
+{% endblock %}
