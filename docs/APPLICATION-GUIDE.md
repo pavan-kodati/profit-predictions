@@ -613,7 +613,7 @@ The runbook records the app as deployed on the AWS server, billing budgets creat
 1. **Decide before 15 Feb 2027:** upgrade AWS or move (section 12).
 2. **Paper trade for 4 to 8 weeks** and review the track record (are 4 and 5 star picks better than 3 star? is the average after costs positive? how do "excitement" picks behave?) before using real money. Then review the scoring weights together.
 3. **Replace exposed secrets** and delete the TEST budget, if not already done.
-4. **Probably not under version control:** no `.git` folder was found in the project folder (plan v3 also said it was not a git repository). Putting it under git, with `.env` and `.env.server` excluded, is recommended in plan v3.
+4. **Version control (done 22 Nov 2026):** the project is in the private GitHub repository `pavan-kodati/profit-predictions`, branch `main`. Commits use the personal identity set in this folder only (the laptop's global git identity is the work account). Push goes through the SSH host alias `github-personal` (key `~/.ssh/id_ed25519_personal`). `.env`, `.env.server` and `data/` are excluded; `.gitattributes` keeps LF line endings so the server scripts run on Linux.
 5. **Small clean-ups:** `.env.example` has stale setting names; the README's opening still says "up to five stocks" (plan v3 made it up to three per size group); `alerts.html` was not redesigned; the nightly backup timer is still 02:30.
 6. **Optional:** a heartbeat warning if no morning email by 09:00; a Lambda wake-up link; a CloudWatch status alarm.
 7. **Known data limits:**
