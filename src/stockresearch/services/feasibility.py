@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 
 from stockresearch.adapters.nse import recent_trading_days
 from stockresearch.container import Container
@@ -35,6 +36,9 @@ def run(c: Container) -> list[Check]:
         _try("NSE price limits", lambda: f"{len(c.exchange.price_bands())} symbols"),
         _try("NSE shareholding (sample: RELIANCE)", lambda: f"{len(c.exchange.shareholding('RELIANCE'))} quarters"),
         _try("NSE bulk and block deals", lambda: f"{len(c.exchange.bulk_and_block_deals())} deals"),
+        _try("NSE corporate actions (splits, bonus issues)",
+             lambda: f"{len(c.exchange.corporate_actions(today - timedelta(days=30), today))} in the last 30 days",
+             required=False),
         _try("Yahoo Finance prices", lambda: f"{len(c.market.history(['RELIANCE'], period='5d'))} symbol(s)"),
         _try("Yahoo Finance financials", lambda: f"{len(c.market.fundamentals('RELIANCE').quarters)} quarters"),
         _try("Approved news search", lambda: f"{len(c.news.company_news('Reliance Industries', 7))} articles"),

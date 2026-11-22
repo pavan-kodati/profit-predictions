@@ -209,6 +209,12 @@ aws --profile pavan-personal s3 cp app.tgz s3://stockresearch-backups-5428850319
 python deploy/aws/ssm_run.py deploy_script.sh 1200      # runs the script on the server as root and prints the output
 ```
 
+Since 22 Nov 2026 the script is in the repo: make the package with
+`git archive --format=tar.gz -o app.tgz HEAD` (committed code only, never `.env` or `data/`), upload it as above, then
+`python deploy/aws/ssm_run.py deploy/aws/deploy.sh 1500`. It waits for running jobs, backs up the database, keeps the
+current code in `/opt/stockresearch-prev.tgz` for rollback, deploys, checks `/health` and the database version, and runs
+`feasibility` and `corporate-action check`. It prints `DEPLOY OK` at the end.
+
 On the server the script downloads the package with `aws s3 cp`, unpacks it in `/opt/stockresearch`,
 runs `docker compose up -d --build app`, and (re)installs timers with `deploy/systemd/install-timers.sh`.
 `ssm_run.py` refuses to run unless the profile is the personal account.
